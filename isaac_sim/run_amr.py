@@ -20,7 +20,8 @@ def main():
     args = arguments()
     spec = json.loads((DESCRIPTION / 'config/compact_amr.json').read_text())
     wheel_targets(spec, args.vx, args.vy, args.wz)  # Validate before starting Kit.
-    runpy.run_path(str(DESCRIPTION / 'scripts/generate_robot.py'), run_name='__main__')
+    if args.scene is None:
+        runpy.run_path(str(DESCRIPTION / 'scripts/generate_robot.py'), run_name='__main__')
     try:
         from isaacsim import SimulationApp
     except ImportError as error:

@@ -9,7 +9,7 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -71,6 +71,16 @@ class GraphAnchorChecks(unittest.TestCase):
 
     def test_modern_import_preserves_world_anchor(self):
         self.check_import(modern=True)
+
+    def test_removed_prim_invalidates_cached_drive(self):
+        stage = Usd.Stage.CreateInMemory()
+        joint = UsdPhysics.RevoluteJoint.Define(stage, '/World/wheel_joint')
+        drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), 'angular')
+        drive.CreateTargetVelocityAttr(0.0)
+        stage.RemovePrim('/World/wheel_joint')
+        self.assertFalse(drive)
+        with self.assertRaises(RuntimeError):
+            drive.GetTargetVelocityAttr().Set(0.0)
 
 
 if __name__ == '__main__':

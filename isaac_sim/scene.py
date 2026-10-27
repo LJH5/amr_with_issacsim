@@ -3,7 +3,7 @@
 """Editor extensions, stage, ground, lighting and physics."""
 
 
-def create_stage(headless):
+def create_stage(headless, scene_path=None, ros2=False):
     import omni.kit.app
     import omni.usd
     from pxr import UsdGeom
@@ -12,9 +12,18 @@ def create_stage(headless):
     if not headless:
         manager.set_extension_enabled_immediate('omni.graph.window.action', True)
     manager.set_extension_enabled_immediate('isaacsim.asset.importer.urdf', True)
+    if ros2:
+        manager.set_extension_enabled_immediate('isaacsim.ros2.bridge', True)
+        if not manager.is_extension_enabled('isaacsim.ros2.bridge'):
+            raise RuntimeError('ROS 2 Bridge could not be enabled; check Isaac Sim ROS libraries')
 
-    omni.usd.get_context().new_stage()
-    stage = omni.usd.get_context().get_stage()
+    context = omni.usd.get_context()
+    if scene_path is not None:
+        if not context.open_stage(str(scene_path)):
+            raise RuntimeError(f'Could not open scene: {scene_path}')
+        return context.get_stage()
+    context.new_stage()
+    stage = context.get_stage()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     world = UsdGeom.Xform.Define(stage, '/World')
