@@ -64,7 +64,9 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 | `docs/` | 설계 문서, 테스트 기록 |
 | `scripts/` | 개발 보조 스크립트 |
 | `.venv/` | 로컬 Python 가상환경 (Git 추적 제외, 자동 생성) |
-| `requirements-dev.txt` | Python 보조 도구 의존성이 생기면 버전 관리 |
+| `requirements-dev.txt` | `.venv`의 `pip freeze --all` 결과 |
+| `requirements-apt.txt` | C++/ROS 2 시스템 패키지 설치 목록 |
+| `system-packages.freeze.txt` | 지정한 apt 패키지의 실제 설치 버전 및 누락 현황 |
 | `isaac_sim/` | USD 에셋, 시뮬레이션 씬, 시뮬레이터 스크립트 |
 | `ros2_ws/src/amr_description/` | URDF/Xacro 및 로봇 모델 |
 | `ros2_ws/src/amr_bringup/` | 전체 시스템 실행용 Launch 및 설정 |
@@ -95,12 +97,14 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 
 ### 1. 사전 준비
 
-Ubuntu 24.04에서 ROS 2 Jazzy와 `colcon`, `rosdep` 등을 먼저 설치합니다. `venv`는 Python 보조 도구에만 사용하며 ROS 2 자체를 `pip`로 설치하지 않습니다.
+Ubuntu 24.04 및 ROS 2 Jazzy apt 저장소가 필요합니다. `venv`는 Python 보조 도구에만 사용하며 ROS 2 자체를 `pip`로 설치하지 않습니다. 현재 호스트에는 Jazzy가 설치되어 있지만 Nav2, SLAM Toolbox 등 일부 패키지가 누락되어 있습니다. 설치·검증 현황은 [환경 구성 기록](docs/environment.md)을 참고하세요.
 
 ```bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip
+# 저장소 루트에서 실행. sudo 비밀번호는 터미널에서 직접 입력합니다.
+bash scripts/setup_system.sh
 ```
+
+이 스크립트는 `requirements-apt.txt`의 GCC/CMake, 포맷터, ROS 2 Jazzy, Nav2, SLAM Toolbox, ros2_control, Xacro 등을 설치하고 `.venv` 및 환경 기록을 갱신합니다. Isaac Sim과 GPU 드라이버는 설치하지 않습니다.
 
 ### 2. 저장소 루트에서 가상환경 생성·활성화
 
@@ -109,20 +113,22 @@ sudo apt install -y python3-venv python3-pip
 cd amr_with_issacsim
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip --version
+python -I -m pip --version
 ```
 
-`.venv/`는 개인 개발 환경이므로 Git에 커밋하지 않습니다. Python 보조 스크립트에 추가 패키지가 필요한 경우 **검증된 패키지만** `requirements-dev.txt`에 명시하고, 파일이 있을 때 아래 명령으로 설치합니다.
+`.venv/`는 개인 개발 환경이므로 Git에 커밋하지 않습니다. 현재 Python 외부 의존성은 없으며, `requirements-dev.txt`에는 부트스트랩 도구 `pip==24.0`만 기록되어 있습니다. 환경 복원은 다음과 같습니다.
 
 ```bash
-python -m pip install -r requirements-dev.txt
+python -I -m pip install -r requirements-dev.txt
 ```
 
-현재 `requirements-dev.txt`는 아직 필수 의존성이 정해지지 않아 제공하지 않습니다. 파일 생성 전에는 위 설치 명령을 실행하지 마세요.
+설치 후 freeze를 갱신하려면 `bash scripts/freeze_environment.sh`를 실행합니다. 내부적으로 `python -I -m pip freeze --all`과 `dpkg-query`를 사용합니다. `-I`는 기존 셸의 ROS `PYTHONPATH`가 Python 보조 환경에 유입되는 것을 막습니다. Python 보조 스크립트도 `python -I script.py`로 실행하면 같은 격리를 적용할 수 있습니다. `system-packages.freeze.txt`는 직접 지정한 apt 패키지의 현황이며, `# MISSING` 항목은 아직 설치되지 않았다는 뜻입니다. 전체 시스템 의존성을 고정하는 lock 파일은 아닙니다.
 
 ### 3. ROS 2 환경 로딩 및 C++ 패키지 빌드
 
 ```bash
+# Humble 등이 이미 로드된 셸이라면 먼저 깨끗한 서브셸을 엽니다.
+env -i HOME="$HOME" USER="$USER" TERM="${TERM:-xterm}" PATH=/usr/bin:/bin bash --noprofile --norc
 source /opt/ros/jazzy/setup.bash
 cd ros2_ws
 
@@ -135,6 +141,8 @@ source install/setup.bash
 colcon test
 colcon test-result --verbose
 ```
+
+현재 `ros2_ws/src/my_amr/`에 C++17 `ament_cmake` 패키지와 기본 노드가 있습니다. 생성 옵션·빌드·실행 인자는 [my_amr 사용법](ros2_ws/src/my_amr/README.md)을 참고하세요. rosdep은 최초 한 번 `sudo rosdep init`으로 초기화하고 사용자 계정에서 `rosdep update --rosdistro jazzy`를 실행합니다. 이미 초기화된 경우 `init`을 반복하지 않습니다.
 
 **참고:** `.venv`를 활성화하면 `PATH`의 Python 실행 파일이 바뀝니다. ROS 2 Jazzy의 시스템 패키지와 Python 버전/모듈 경로가 충돌할 수 있으므로, `colcon` 또는 ROS 2 Python 노드에서 임포트 오류가 발생하면 `deactivate`로 가상환경을 종료하고 ROS 2 설치에 맞는 시스템 환경에서 빌드·실행합니다. 필요한 Python 의존성은 ROS 2 패키지 관리 방식(`rosdep`/apt)과 역할을 구분합니다.
 
