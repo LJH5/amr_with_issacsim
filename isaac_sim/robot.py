@@ -22,7 +22,12 @@ def import_robot(stage, source, build):
         config.self_collision = False
         config.import_inertia_tensor = True
         config.distance_scale = 1.0
+        config.make_default_prim = False
         success, _ = omni.kit.commands.execute(
             'URDFParseAndImportFile', urdf_path=str(source), import_config=config)
         if not success:
             raise RuntimeError('URDF import failed')
+
+    # The importer can author the nested robot name as a root-level defaultPrim.
+    # Action Graph's editor resolves new graph paths relative to this prim.
+    stage.SetDefaultPrim(stage.GetPrimAtPath('/World'))

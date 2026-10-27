@@ -82,6 +82,20 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 
 Kit/USD 모듈은 SimulationApp 생성 후에만 불러옵니다. 실행 명령과 CLI 옵션은 그대로 유지합니다. 기존 메카넘·모델 검사 외에 재생 루프의 시간 제한·가속도·단위 변환·오류 시 정지 처리를 오프라인으로 검사합니다.
 
+## Action Graph 생성 시 빈 경로 오류
+
+`Failed to create ComputeGraph ""`와 `MakeAbsolutePath(): anchor is the empty path`가 함께 나오면 Stage의 `defaultPrim`을 확인합니다. 실제 저장된 장면에서 `defaultPrim = "compact_mecanum_amr"`였지만 로봇은 `/World/compact_mecanum_amr`에 있어 유효하지 않은 루트 Prim을 가리켰습니다. 편집기는 이 빈 기준 경로로 새 그래프 경로를 계산하다 실패했습니다.
+
+`robot.py`에서 URDF 가져오기 후 기본 Prim을 `/World`로 복원하고, 기존 importer의 `make_default_prim`도 비활성화합니다. 수정 후 `bash run.sh`로 다시 실행하면 반영됩니다. 현재 열린 장면을 유지하려면 Script Editor에서 다음 코드로 복원한 뒤 New Action Graph를 다시 누릅니다. 기존 그래프는 삭제하지 않습니다.
+
+```python
+import omni.usd
+stage = omni.usd.get_context().get_stage()
+stage.SetDefaultPrim(stage.GetPrimAtPath('/World'))
+```
+
+USD 라이브러리로 기존 파일의 빈 경로를 재현했고 `/World` 복원 후 `/World/ActionGraph`로 계산되는 것을 확인했습니다. `test/check_graph_anchor.py`는 실제 USD Stage와 모의 importer로 5.x/6.x 코드 경로의 회귀를 검사합니다. 실행 시 Isaac Sim USD 라이브러리가 필요하며 GUI 재클릭 검증은 별도입니다.
+
 ## 검증과 제한
 
 ```bash
