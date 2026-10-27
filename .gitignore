@@ -1,12 +1,91 @@
-# unpacked plugin folders
-plugins/**/*
+# ========================================
+# ROS 2 / colcon / ament / CMake
+# ========================================
+# Workspace-generated output (including ros2_ws/)
+**/build/
+**/install/
+**/log/
+**/logs/
 
-# files directory where uploads go
-files
+# CMake artifacts
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+Testing/
 
-# DBMigrate plugin: generated SQL
-db/sql
+# Compiled objects / libraries / executables
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
 
-# AssetBundler plugin: generated bundles
-javascripts/bundles
-stylesheets/bundles
+# ========================================
+# Python (launch files, tooling, Isaac scripts)
+# ========================================
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# ========================================
+# Isaac Sim / Omniverse generated caches
+# ========================================
+# Keep tracked USD assets (*.usd, *.usda, *.usdc), scenes and configs.
+**/kit/cache/
+**/ov/cache/
+**/ov/logs/
+**/shader_cache/
+**/texture_cache/
+**/render_cache/
+*.usd.lock
+
+# ========================================
+# Editors / IDEs
+# ========================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ========================================
+# OS / local scratch files
+# ========================================
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# ========================================
+# ROS runtime / debugging output
+# ========================================
+*.bag
+*.bag.active
+*.db3
+*.mcap
+*.rosbag2
+*.core
+core
+core.*
+
+# Do not ignore source files or map artifacts by default.
+# For large USD scenes/meshes or recorded datasets, configure Git LFS.
