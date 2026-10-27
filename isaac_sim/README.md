@@ -46,6 +46,7 @@ cd /home/buddha/my_workspace/amr_with_issacsim/isaac_sim
 # export ISAAC_SIM_PYTHON=/path/to/isaac-venv/bin/python
 
 bash run.sh                              # 저장한 omni_amr.usd 로딩 + ROS 2 Bridge 활성화
+bash run.sh --control ros                # 저장된 Subscribe Twist로 ROS 주행
 bash run.sh --scene scenes/other.usda     # 다른 저장 장면 선택
 bash run.sh --new-scene --no-ros2         # 새 모델 생성, Bridge 비활성화
 bash run.sh --vx 0.3                     # 전진, 2초 후 명령 정지
@@ -64,7 +65,34 @@ bash run.sh --help
 
 실행 중 `File → Open/New`로 Stage를 바꾸면 기존 휠 핸들을 해제하고 CLI 제어를 중단한 채 UI를 유지합니다. 새 장면에서 CLI 주행을 하려면 그 파일을 `--scene`으로 지정해 다시 실행하세요. 이전 코드는 장면 변경 후 무효화된 휠 핸들에 접근해 예외로 종료될 수 있었습니다.
 
-속도 명령은 가속도를 제한하고 병진 속도 벡터를 1.5 m/s로 제한합니다. `--drive-seconds` 경과 후 속도 목표를 0으로 바꾸지만 물리적인 정지 거리가 0이라는 뜻은 아닙니다. 작은 바닥이므로 최고 속도·장시간 주행 전 바닥 크기를 확장해야 합니다. 현재 CLI 속도 명령은 ROS `/cmd_vel`과 연결되어 있지 않습니다.
+속도 명령은 가속도를 제한하고 병진 속도 벡터를 1.5 m/s로 제한합니다. CLI 모드에서는 `--drive-seconds` 경과 후 속도 목표를 0으로 바꾸지만 물리적인 정지 거리가 0이라는 뜻은 아닙니다. 작은 바닥이므로 최고 속도·장시간 주행 전 바닥 크기를 확장해야 합니다. 기본 `--control cli`에서는 ROS 명령이 바퀴에 적용되지 않습니다.
+
+## ROS `/cmd_vel` 주행
+
+저장한 장면에 `ROS2 Subscribe Twist` 노드가 정확히 하나 있어야 합니다. Topic Name은 `/cmd_vel`, Node Namespace는 비워 두고 기존 On Playback Tick의 Tick과 ROS2 Context의 Context를 각각 Exec In과 Context 입력에 연결합니다. 기존 Publish Clock은 유지합니다.
+
+```bash
+# isaac_sim/에서 실행
+bash run.sh --control ros
+```
+
+이 모드는 `linear.x`, `linear.y`, `angular.z`를 받아 기존 메카넘 계산과 휠 드라이브에 적용합니다. CLI 속도 옵션과 ROS 제어를 섞으면 오류를 표시합니다. 기존 USD 파일은 덮어쓰지 않습니다.
+
+구독 노드의 Exec Out에 Counter를 실행 중 연결해 실제 새 메시지 수신을 판별합니다. 같은 값이 반복 수신돼도 타임아웃을 갱신하며, 수신이 0.25초 이상 끊기면 즉시 휠 목표 속도를 0으로 설정합니다. 시간은 시뮬레이션 시간이 아닌 단조 증가 벽시계를 사용합니다. 일시정지 중에는 캐시된 명령을 폐기합니다. GUI에서 Counter까지 저장했다면 다음 실행에서 해당 노드와 연결을 재사용합니다.
+
+다른 Jazzy 터미널에서 통신을 확인합니다. Isaac Sim과 ROS 터미널의 `ROS_DOMAIN_ID`가 같아야 합니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+ros2 topic info /cmd_vel
+
+# 각 명령은 개별 실행하고 Ctrl+C로 중단합니다.
+ros2 topic pub --rate 20 /cmd_vel geometry_msgs/msg/Twist '{linear: {x: 0.2}}'
+ros2 topic pub --rate 20 /cmd_vel geometry_msgs/msg/Twist '{linear: {y: 0.2}}'
+ros2 topic pub --rate 20 /cmd_vel geometry_msgs/msg/Twist '{angular: {z: 0.3}}'
+```
+
+`/cmd_vel` 구독자가 확인되고 전진·횡이동·회전 및 발행 중단 후 정지를 검증해야 완료입니다. 정지 목표가 적용되는 시간과 실제 감속·정지 거리는 구분합니다. ROS 메시지 갱신·타임아웃·명령 선택·그래프 연결의 오프라인 검사는 통과했지만, 이 변경의 실제 DDS 통신·Isaac Sim 물리 주행은 아직 검증하지 않았습니다.
 
 ## ROS launch와의 관계
 
@@ -84,6 +112,7 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
 | `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
 | `mecanum.py` | 시뮬레이터에 의존하지 않는 메카넘 역기구학·속도 제한 |
+| `ros_commands.py` | 저장된 Twist 구독 노드·수신 Counter 연결, 수신 시각 기반 타임아웃 |
 | `simulation.py` | 장면 조립·저장, 재생 루프와 종료 시 정지 처리 |
 
 Kit/USD 모듈은 SimulationApp 생성 후에만 불러옵니다. 실행 명령과 CLI 옵션은 그대로 유지합니다. 기존 메카넘·모델 검사 외에 재생 루프의 시간 제한·가속도·단위 변환·오류 시 정지 처리를 오프라인으로 검사합니다.
@@ -108,6 +137,7 @@ USD 라이브러리로 기존 파일의 빈 경로를 재현했고 `/World` 복�
 python3 ../ros2_ws/src/amr_description/test/check_model.py
 python3 test/check_mecanum.py
 python3 test/check_simulation.py
+python3 test/check_ros_commands.py
 ```
 
 위 검사는 표준 라이브러리만 사용하며 링크 트리·질량·관성·롤러 축·바퀴 속도 여유·명령 속도 제한을 검증합니다. 원통 롤러는 단순화된 형상이라 접촉 진동과 슬립 튜닝이 필요합니다. 실제 주행 시 지면 마찰, 접촉 안정성, 롤러 형상, 모터 게인을 검증해야 합니다.

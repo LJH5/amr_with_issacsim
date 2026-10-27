@@ -4,6 +4,7 @@
 
 from drive import apply_command, configure_drives, ramp_command
 from robot import import_robot
+from ros_commands import GraphTwistSubscriber
 from scene import add_environment, create_stage
 
 
@@ -25,13 +26,17 @@ def run(app, args, spec, sim_dir, description):
         print(f'Scene saved: {build / "amr_scene.usda"}')
     else:
         print(f'Scene loaded: {args.scene} (save edits with Ctrl+S)')
-    print('CLI drive control is active; no ROS velocity subscriber is configured by this script.')
+    command_source = None
+    if args.control == 'ros':
+        command_source = GraphTwistSubscriber(stage, spec['motion_targets']['command_timeout_s'])
+    else:
+        print('CLI drive control is active; ROS Twist does not control the wheels in this mode.')
 
     timeline = omni.timeline.get_timeline_interface()
-    run_loop(app, timeline, args, spec, drives, omni.usd.get_context().get_stage)
+    run_loop(app, timeline, args, spec, drives, omni.usd.get_context().get_stage, command_source)
 
 
-def run_loop(app, timeline, args, spec, drives, get_stage=None):
+def run_loop(app, timeline, args, spec, drives, get_stage=None, command_source=None):
     initial_stage = get_stage() if get_stage is not None else None
     timeline.play()
     steps = 0
@@ -44,11 +49,20 @@ def run_loop(app, timeline, args, spec, drives, get_stage=None):
                 # File > Open/New can invalidate every cached USD drive handle.
                 # Leave playback/UI running, but never control the replacement scene.
                 drives = []
-                print('Scene changed: CLI wheel control released; UI remains active.')
+                print('Scene changed: wheel control released; UI remains active.')
             now = timeline.get_current_time()
             dt = max(0.0, min(now - last_time, 0.1))
             last_time = now
-            target = [args.vx, args.vy, args.wz] if now < args.drive_seconds else [0.0]*3
+            if command_source is not None:
+                if not drives:
+                    target = [0.0]*3
+                elif not timeline.is_playing():
+                    command_source.reset()
+                    target = [0.0]*3
+                else:
+                    target = command_source.poll()
+            else:
+                target = [args.vx, args.vy, args.wz] if now < args.drive_seconds else [0.0]*3
             previous = ramp_command(previous, target, dt, spec['motion_targets'])
             apply_command(drives, spec, previous)
             app.update()

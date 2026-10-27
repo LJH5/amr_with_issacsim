@@ -18,6 +18,8 @@ def arguments():
                         help='Generate a fresh test scene instead of loading a saved scene')
     parser.add_argument('--ros2', action=argparse.BooleanOptionalAction, default=True,
                         help='Enable ROS 2 Bridge before loading the scene (default: enabled)')
+    parser.add_argument('--control', choices=('cli', 'ros'), default='cli',
+                        help='Wheel command source (default: cli)')
     parser.add_argument('--vx', type=float, default=0.0, help='Forward velocity, m/s')
     parser.add_argument('--vy', type=float, default=0.0, help='Leftward velocity, m/s')
     parser.add_argument('--wz', type=float, default=0.0, help='CCW yaw rate, rad/s')
@@ -28,6 +30,11 @@ def arguments():
     args = parser.parse_args()
     if not math.isfinite(args.drive_seconds) or args.drive_seconds < 0 or args.steps < 0:
         parser.error('drive-seconds and steps must be nonnegative and finite')
+    if args.control == 'ros':
+        if not args.ros2:
+            parser.error('--control ros requires ROS 2 Bridge; remove --no-ros2')
+        if any(value != 0 for value in (args.vx, args.vy, args.wz)):
+            parser.error('--vx/--vy/--wz cannot be combined with --control ros')
     if args.scene is not None:
         args.scene = args.scene.resolve()
         if not args.scene.is_file():

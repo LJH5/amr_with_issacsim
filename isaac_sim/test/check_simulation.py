@@ -58,6 +58,9 @@ class Playback:
     def is_running(self):
         return len(self.samples) < len(self.times)
 
+    def is_playing(self):
+        return self.playing
+
     def get_current_time(self):
         return self.times[len(self.samples)]
 
@@ -69,7 +72,7 @@ class Playback:
 
 def options(**overrides):
     values = dict(vx=0.3, vy=0.0, wz=0.0, drive_seconds=2.0, steps=0,
-                  headless=False, scene=None, ros2=True)
+                  headless=False, scene=None, ros2=True, control='cli')
     values.update(overrides)
     return SimpleNamespace(**values)
 
@@ -186,6 +189,33 @@ class SimulationChecks(unittest.TestCase):
         hooks['add_environment'].assert_not_called()
         stage.GetRootLayer.assert_not_called()
         hooks['run_loop'].assert_called_once()
+
+    def test_ros_commands_replace_cli_and_stop_on_timeout(self):
+        playback = Playback([0.0, 0.1, 0.2])
+        source = Mock()
+        source.poll.side_effect = [[0.0]*3, [0.0, 0.2, 0.0], [0.0]*3]
+        run_loop(playback, playback, options(), SPEC, playback.drives, command_source=source)
+        self.assertLess(playback.samples[1][0], 0)
+        self.assertGreater(playback.samples[1][1], 0)
+        self.assertEqual(playback.samples[2], (0.0,)*4)
+
+    def test_paused_ros_control_discards_cached_command(self):
+        playback = Playback([0.0, 0.1])
+        playback.is_playing = lambda: False
+        source = Mock()
+        run_loop(playback, playback, options(), SPEC, playback.drives, command_source=source)
+        source.poll.assert_not_called()
+        self.assertEqual(source.reset.call_count, 2)
+        self.assertEqual(playback.samples, [(0.0,)*4]*2)
+
+    def test_ros_cli_modes_cannot_be_mixed(self):
+        from cli import arguments
+        for flags in (['--control', 'ros', '--vx', '0.2'],
+                      ['--control', 'ros', '--no-ros2']):
+            with patch.object(sys, 'argv', ['run_amr.py', *flags]), patch('sys.stderr'):
+                with self.assertRaises(SystemExit) as error:
+                    arguments()
+            self.assertEqual(error.exception.code, 2)
 
 
 if __name__ == '__main__':
