@@ -62,15 +62,32 @@ bash run.sh --help
 
 ## ROS launch와의 관계
 
+GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명시적으로 활성화합니다. `Window → Graph Editors → Action Graph`에서 편집기를 엽니다. 메뉴가 없으면 `Window → Extensions`에서 해당 확장의 활성화 상태를 확인하세요. 이 설정은 그래프 편집기용이며 ROS 2 Bridge와 토픽 그래프를 자동 구성하지는 않습니다.
+
 - `ros2 launch amr_description display.launch.py`: RViz에서 형상·TF 확인용. Isaac Sim을 실행하지 않습니다.
 - `bash run.sh`: Isaac Sim 모델·물리 주행 확인용. ROS launch 없이 실행합니다.
 - Isaac Sim 센서와 Bridge를 검증한 다음 `amr_bringup` launch에서 이 실행 파일과 ROS 노드를 묶습니다. 현재 통합 launch는 없습니다.
+
+## 코드 구성
+
+| 파일 | 담당 기능 |
+| --- | --- |
+| `run_amr.py` | 제원 로딩·URDF 재생성, SimulationApp 시작·종료 |
+| `cli.py` | 실행 인자 파싱·검증 |
+| `scene.py` | 편집기 확장, Stage·지면·조명·물리 환경 구성 |
+| `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
+| `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
+| `mecanum.py` | 시뮬레이터에 의존하지 않는 메카넘 역기구학·속도 제한 |
+| `simulation.py` | 장면 조립·저장, 재생 루프와 종료 시 정지 처리 |
+
+Kit/USD 모듈은 SimulationApp 생성 후에만 불러옵니다. 실행 명령과 CLI 옵션은 그대로 유지합니다. 기존 메카넘·모델 검사 외에 재생 루프의 시간 제한·가속도·단위 변환·오류 시 정지 처리를 오프라인으로 검사합니다.
 
 ## 검증과 제한
 
 ```bash
 python3 ../ros2_ws/src/amr_description/test/check_model.py
 python3 test/check_mecanum.py
+python3 test/check_simulation.py
 ```
 
 위 검사는 표준 라이브러리만 사용하며 링크 트리·질량·관성·롤러 축·바퀴 속도 여유·명령 속도 제한을 검증합니다. 원통 롤러는 단순화된 형상이라 접촉 진동과 슬립 튜닝이 필요합니다. 실제 주행 시 지면 마찰, 접촉 안정성, 롤러 형상, 모터 게인을 검증해야 합니다.
