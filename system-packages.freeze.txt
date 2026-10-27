@@ -1,0 +1,24 @@
+# 직접 지정한 apt 패키지의 설치 현황입니다. 전체 전이 의존성 lock이 아닙니다.
+# name=version: 설치됨 / MISSING: 미설치 (apt 설치 성공 후 다시 생성하세요).
+build-essential=12.10ubuntu1
+cmake=3.28.3-1build7
+# MISSING: ninja-build
+# MISSING: clang-format
+pkg-config=1.8.1-2build1
+# MISSING: python3-venv
+python3-pip=24.0+dfsg-1ubuntu1.3
+python3-colcon-common-extensions=0.3.0-100
+python3-rosdep=0.27.0-1
+ros-jazzy-desktop=0.11.0-1noble.20261006.040109
+ros-jazzy-ament-cmake=2.5.6-2noble.20260225.222913
+ros-jazzy-ament-cmake-gtest=2.5.6-2noble.20260225.145055
+ros-jazzy-ament-lint-auto=0.17.5-1noble.20260410.080333
+ros-jazzy-ament-lint-common=0.17.5-1noble.20260410.114154
+# MISSING: ros-jazzy-navigation2
+# MISSING: ros-jazzy-nav2-bringup
+# MISSING: ros-jazzy-slam-toolbox
+# MISSING: ros-jazzy-ros2-control
+# MISSING: ros-jazzy-ros2-controllers
+# MISSING: ros-jazzy-xacro
+ros-jazzy-robot-state-publisher=3.3.4-1noble.20260915.184559
+ros-jazzy-rmw-fastrtps-cpp=8.4.4-1noble.20260911.100940
