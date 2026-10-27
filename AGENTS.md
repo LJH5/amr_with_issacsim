@@ -119,15 +119,15 @@ amr_control/
 
 ### 7.1 브랜치 역할과 병합 순서
 
-| 브랜치 | 역할 |
-| --- | --- |
-| `master` | 빌드와 통합 테스트를 통과한 안정 버전 |
-| `develop` | 다음 버전의 기능과 수정 사항을 통합하는 개발 브랜치 |
-| `test` | `develop`에서 준비한 변경을 시뮬레이션·통합 테스트하는 검증 브랜치 |
-| `feature/<topic>` | 개별 기능 추가·개선. 예: `feature/robot-description` |
-| `fix/<topic>` | 버그 수정. 예: `fix/odom-frame` |
-| `docs/<topic>` | 문서 변경. 예: `docs/git-workflow` |
-| `chore/<topic>` | 환경·빌드 도구 등 유지보수. 예: `chore/dependencies` |
+| 브랜치             | 역할
+| ---               | ---
+| `master`          | 빌드와 통합 테스트를 통과한 안정 버전
+| `develop`         | 다음 버전의 기능과 수정 사항을 통합하는 개발 브랜치
+| `test`            | `develop`에서 준비한 변경을 시뮬레이션·통합 테스트하는 검증 브랜치
+| `feature/<topic>` | 개별 기능 추가·개선. 예: `feature/robot-description`
+| `fix/<topic>`     | 버그 수정. 예: `fix/odom-frame`
+| `docs/<topic>`    | 문서 변경. 예: `docs/git-workflow`
+| `chore/<topic>`   | 환경·빌드 도구 등 유지보수. 예: `chore/dependencies`
 
 - 브랜치 이름의 `<topic>`은 소문자 영문·숫자·하이픈을 사용한다.
 - 작업 브랜치는 최신 `develop`에서 생성하며, 하나의 작업 목적에 집중한다.
