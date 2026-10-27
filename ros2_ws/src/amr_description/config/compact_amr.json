@@ -1,0 +1,76 @@
+{
+  "name": "compact_mecanum_amr",
+  "chassis": {
+    "size_m": [0.42, 0.28, 0.16],
+    "center_height_m": 0.19,
+    "mass_kg": 17.0
+  },
+  "design": {
+    "footprint_size_m": [0.48, 0.44],
+    "height_envelope_m": 0.34,
+    "payload_capacity_target_kg": 10.0,
+    "simulated_payload_kg": 0.0
+  },
+  "wheels": {
+    "radius_m": 0.075,
+    "hub_radius_m": 0.045,
+    "hub_width_m": 0.04,
+    "hub_mass_kg": 0.5,
+    "wheelbase_m": 0.30,
+    "track_m": 0.36,
+    "rollers_per_wheel": 8,
+    "roller_radius_m": 0.016,
+    "roller_length_m": 0.045,
+    "roller_mass_kg": 0.025,
+    "roller_angle_deg": 45.0,
+    "joint_velocity_limit_rad_s": 35.0,
+    "joint_effort_limit_nm": 8.0,
+    "order": ["front_left", "front_right", "rear_left", "rear_right"],
+    "roller_handedness": [-1, 1, 1, -1]
+  },
+  "motion_targets": {
+    "max_planar_speed_m_s": 1.5,
+    "initial_test_speed_m_s": 0.3,
+    "max_yaw_rate_rad_s": 1.2,
+    "max_planar_acceleration_m_s2": 0.5,
+    "max_yaw_acceleration_rad_s2": 1.0,
+    "command_timeout_s": 0.25
+  },
+  "sensors": {
+    "lidar_front_left": {
+      "xyz_m": [0.205, 0.135, 0.30],
+      "rpy_rad": [0.0, 0.0, 0.7853981633974483],
+      "mass_kg": 0.05,
+      "topic": "/scan/front",
+      "horizontal_fov_deg": 270.0,
+      "range_m": [0.05, 20.0],
+      "rate_hz": 20
+    },
+    "lidar_rear_right": {
+      "xyz_m": [-0.205, -0.135, 0.30],
+      "rpy_rad": [0.0, 0.0, -2.356194490192345],
+      "mass_kg": 0.05,
+      "topic": "/scan/rear",
+      "horizontal_fov_deg": 270.0,
+      "range_m": [0.05, 20.0],
+      "rate_hz": 20
+    },
+    "camera_front": {
+      "xyz_m": [0.225, 0.0, 0.235],
+      "rpy_rad": [0.0, 0.0, 0.0],
+      "mass_kg": 0.08,
+      "resolution_px": [640, 480],
+      "horizontal_fov_deg": 87.0,
+      "depth_range_m": [0.2, 10.0],
+      "rate_hz": 30,
+      "model": "generic_rgbd_realsense_like"
+    },
+    "imu": {
+      "xyz_m": [0.0, 0.0, 0.19],
+      "rpy_rad": [0.0, 0.0, 0.0],
+      "mass_kg": 0.02,
+      "topic": "/imu/data",
+      "rate_hz": 100
+    }
+  }
+}

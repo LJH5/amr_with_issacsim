@@ -19,4 +19,5 @@ ros-jazzy-ros2-control
 ros-jazzy-ros2-controllers
 ros-jazzy-xacro
 ros-jazzy-robot-state-publisher
+ros-jazzy-joint-state-publisher-gui
 ros-jazzy-rmw-fastrtps-cpp

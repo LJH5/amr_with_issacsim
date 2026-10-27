@@ -11,7 +11,8 @@
 - **자율주행:** Nav2 (Navigation2)
 - **지도 작성:** SLAM Toolbox
 - **위치 추정:** AMCL 등 ROS 2 표준 패키지
-- **로봇 제어:** ros2_control / diff_drive_controller 우선 검토
+- **구동 방식:** 소형 4륜 메카넘, 최고 병진 속도 1.5 m/s (속도 벡터 크기 기준)
+- **로봇 제어:** ros2_control / mecanum_drive_controller 우선 검토. Isaac Sim 연동 방식은 별도 검증
 - **시각화:** RViz2
 - **Python 개발 환경:** Ubuntu 기본 Python 3 `venv`, 프로젝트 루트 `.venv/` (개발 보조 도구에만 사용)
 - **소스 및 이슈 관리:** Git / GitHub
@@ -106,7 +107,7 @@ amr_control/
 2. **프로젝트 기반:** GitHub 저장소, ROS 2 워크스페이스, Notion 개발 문서 구성
 3. **로봇 모델:** URDF/Xacro, 조인트, LiDAR/IMU, TF 구조 검증
 4. **시뮬레이터 연동:** Isaac Sim ↔ ROS 2 Bridge, 센서 데이터 및 구동 명령 테스트
-5. **주행 제어:** 차동구동, `/cmd_vel`, `/odom`, 제한값 및 타임아웃 검증
+5. **주행 제어:** 메카넘 전방향 구동, `/cmd_vel`의 x/y/yaw, `/odom`, 제한값 및 타임아웃 검증
 6. **매핑:** SLAM Toolbox를 사용한 지도 생성과 저장
 7. **위치 추정:** AMCL과 지도 기반 로컬라이제이션 검증
 8. **자율주행:** Nav2 경로 계획·추종·장애물 대응·복구 동작 확인
