@@ -2,7 +2,9 @@
 
 **ROS 2 Jazzy + C++ + NVIDIA Isaac Sim 기반 자율주행 AMR 개발 프로젝트**
 
-Ubuntu 24.04 LTS 환경에서 차동구동(Differential Drive) AMR의 시뮬레이션, 로봇 제어, 지도 작성(SLAM), 위치 추정, 경로 계획 및 자율주행을 단계적으로 구현합니다. 검증된 ROS 2 오픈소스를 활용하고, 이후 실제 로봇 하드웨어로 확장할 수 있도록 모듈형 아키텍처를 지향합니다.
+Ubuntu 24.04 LTS 환경에서 소형 4륜 메카넘 AMR의 시뮬레이션, 로봇 제어, 지도 작성(SLAM), 위치 추정, 경로 계획 및 자율주행을 단계적으로 구현합니다. 최고 병진 속도는 1.5 m/s이며, 초기 모델은 센서 포함 예약 크기 0.48 × 0.44 × 0.34 m로 설계했습니다. 검증된 ROS 2 오픈소스를 활용하고, 이후 실제 로봇 하드웨어로 확장할 수 있도록 모듈형 아키텍처를 지향합니다.
+
+Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. 모델·주행 코드는 준비했으며 실제 Isaac Sim 물리 실행과 센서/ROS Bridge 연동은 검증 전입니다.
 
 > **프로젝트 상태:** 초기 설계 및 개발 환경 구성 단계. 아래 디렉터리와 실행 절차는 목표 구조이며, 구현 진행에 따라 업데이트합니다.
 >
@@ -19,7 +21,7 @@ Ubuntu 24.04 LTS 환경에서 차동구동(Differential Drive) AMR의 시뮬레�
 | Python 도구 환경 | Python 3 `venv` (`.venv/`, 로컬 전용) |
 | 시뮬레이션 | NVIDIA Isaac Sim + ROS 2 Bridge |
 | 로봇 모델 | URDF / Xacro / USD(시뮬레이터) |
-| 로봇 제어 | ros2_control, diff_drive_controller (검토/활용) |
+| 로봇 제어 | ros2_control, mecanum_drive_controller (연동 검토) |
 | 지도 작성 | SLAM Toolbox |
 | 위치 추정 | AMCL |
 | 자율주행 | Nav2 (Navigation2) |
@@ -33,7 +35,7 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 
 ## 개발 목표
 
-- 차동구동 AMR의 모델, 센서(2D LiDAR, IMU, 휠 엔코더) 및 주행 환경 구성
+- 4륜 메카넘 AMR의 모델, 센서(대각 LiDAR 2개, 전방 RGB-D, 중앙 IMU, 휠 피드백) 및 주행 환경 구성
 - Isaac Sim ↔ ROS 2 사이의 명령/센서/상태 데이터 통신
 - C++ 기반의 모듈형 제어 및 상태 관리
 - Odometry / TF 검증과 SLAM Toolbox 기반 2D 지도 생성
@@ -48,7 +50,7 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 1. **Mission / State Logic (C++):** 목적지와 주행 미션을 관리하고 로봇 상태를 처리합니다.
 2. **Nav2:** 경로 계획과 경로 추종을 담당하며, 주행 속도 명령(`/cmd_vel`)을 생성합니다.
 3. **ROS 2 제어 계층:** 주행 명령을 로봇 구동 인터페이스로 전달하고 로봇의 상태를 관리합니다.
-4. **Isaac Sim + ROS 2 Bridge:** 차동구동 AMR과 센서를 시뮬레이션하고 ROS 2와 데이터를 교환합니다.
+4. **Isaac Sim + ROS 2 Bridge:** 메카넘 AMR과 센서를 시뮬레이션하고 ROS 2와 데이터를 교환합니다.
 5. **SLAM Toolbox / AMCL / RViz2:** 지도 생성, 위치 추정, 센서 및 주행 상태 시각화를 담당합니다.
 
 **주요 데이터 흐름:** 미션 관리자가 Nav2에 목적지를 전달하면 Nav2가 주행 속도 명령(`/cmd_vel`)을 생성합니다. 제어 계층은 이 명령을 Isaac Sim의 로봇에 전달합니다. Isaac Sim에서 생성한 센서 데이터와 주행 상태(`/odom`, `/scan`, `/imu`, `/tf`)는 지도 작성, 위치 추정, 자율주행 모듈에서 활용합니다. TF와 Odometry의 발행 주체는 중복되지 않도록 구성합니다.
@@ -84,7 +86,7 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 
 - [ ] **01. 환경 구성:** Ubuntu / ROS 2 Jazzy / Python venv / 빌드 도구 / Isaac Sim 호환성 검증
 - [ ] **02. 프로젝트 초기화:** GitHub, 패키지 구조, 개발 규칙 및 문서화 체계
-- [ ] **03. 로봇 모델:** 차동구동 AMR, 센서, URDF/Xacro 및 USD 구성
+- [ ] **03. 로봇 모델:** 소형 메카넘 URDF 구성 완료, 센서·USD 물리 실행 검증 예정
 - [ ] **04. 시뮬레이터 연동:** Isaac Sim ↔ ROS 2 Bridge 토픽 검증
 - [ ] **05. 기본 제어:** `/cmd_vel`, 휠 제어, `/odom`, TF 검증
 - [ ] **06. Mapping:** SLAM Toolbox로 맵 작성 및 저장
