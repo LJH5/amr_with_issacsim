@@ -36,6 +36,11 @@
     "max_yaw_acceleration_rad_s2": 1.0,
     "command_timeout_s": 0.25
   },
+  "control": {
+    "cmd_vel_topic": "/cmd_vel",
+    "wheel_command_topic": "/wheel_commands",
+    "update_rate_hz": 50.0
+  },
   "sensors": {
     "lidar_front_left": {
       "xyz_m": [0.205, 0.135, 0.30],

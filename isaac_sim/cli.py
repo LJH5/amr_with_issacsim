@@ -19,6 +19,8 @@ def arguments():
     parser.add_argument('--ros2', action=argparse.BooleanOptionalAction, default=True,
                         help='Enable ROS 2 Bridge before loading the scene (default: enabled)')
     parser.add_argument('--vx', type=float, default=0.0, help='Forward velocity, m/s')
+    parser.add_argument('--control', choices=('ros', 'cli'),
+                        help='Command source: default ros; velocity CLI arguments select cli')
     parser.add_argument('--vy', type=float, default=0.0, help='Leftward velocity, m/s')
     parser.add_argument('--wz', type=float, default=0.0, help='CCW yaw rate, rad/s')
     parser.add_argument('--drive-seconds', type=float, default=2.0,
@@ -26,6 +28,10 @@ def arguments():
     parser.add_argument('--steps', type=int, default=0,
                         help='Exit after N application updates; 0 runs until closed')
     args = parser.parse_args()
+    if args.control is None:
+        args.control = 'ros' if args.ros2 and not any((args.vx, args.vy, args.wz)) else 'cli'
+    if args.control == 'ros' and (not args.ros2 or any((args.vx, args.vy, args.wz))):
+        parser.error('ROS control requires ROS 2 Bridge and cannot use --vx/--vy/--wz')
     if not math.isfinite(args.drive_seconds) or args.drive_seconds < 0 or args.steps < 0:
         parser.error('drive-seconds and steps must be nonnegative and finite')
     if args.scene is not None:

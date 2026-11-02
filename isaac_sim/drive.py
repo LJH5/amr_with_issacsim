@@ -49,6 +49,14 @@ def ramp_command(previous, target, dt, motion):
 
 def apply_command(drives, spec, command):
     velocities = wheel_targets(spec, *command)
+    apply_wheel_velocities(drives, velocities)
+
+
+def apply_wheel_velocities(drives, velocities):
+    if not drives:
+        return
+    if len(drives) != 4 or len(velocities) != 4 or not all(math.isfinite(v) for v in velocities):
+        raise ValueError('Four finite wheel velocities are required')
     for drive, velocity in zip(drives, velocities):
         # USD angular drives use degrees/s; inverse kinematics uses rad/s.
         drive.GetTargetVelocityAttr().Set(math.degrees(velocity))
