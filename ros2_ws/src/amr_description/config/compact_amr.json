@@ -43,6 +43,7 @@
       "mass_kg": 0.05,
       "topic": "/scan/front",
       "horizontal_fov_deg": 270.0,
+      "horizontal_resolution_deg": 0.5,
       "range_m": [0.05, 20.0],
       "rate_hz": 20
     },
@@ -52,6 +53,7 @@
       "mass_kg": 0.05,
       "topic": "/scan/rear",
       "horizontal_fov_deg": 270.0,
+      "horizontal_resolution_deg": 0.5,
       "range_m": [0.05, 20.0],
       "rate_hz": 20
     },

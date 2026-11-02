@@ -29,7 +29,89 @@
 | 전방 RGB-D | `(0.225, 0, 0.235)` | 640×480 / 30 Hz, RealSense 계열을 가정한 일반 모델 |
 | 중앙 IMU | `(0, 0, 0.19)` | 100 Hz |
 
-**생성 모델의 센서는 장착 형상과 TF 좌표계만 있습니다.** LiDAR 스캔, RGB-D 이미지, IMU 측정값은 아직 구현하지 않았습니다. 저장한 장면의 ROS 그래프를 읽을 수 있도록 Bridge는 기본 활성화합니다. 두 LiDAR의 배치는 수평 시야를 넓히기 위한 것이며, 차체 가림·근접 사각·낮은 장애물 검출을 보장하지 않습니다.
+ROS 2가 활성화된 실행에서는 물리 IMU, 실제 조인트 피드백, 두 PhysX LiDAR의 스캔을 발행합니다. RGB-D 이미지는 아직 구현하지 않았습니다. 두 LiDAR의 배치는 수평 시야를 넓히기 위한 것이며, 차체 가림·근접 사각·낮은 장애물 검출을 보장하지 않습니다.
+
+## 두 LiDAR 연동
+
+기본 `bash run.sh` 실행 시 `lidar.py`가 센서와 `/World/AMRLidar` 그래프를 자동 구성합니다. 수동 Action Graph 편집은 필요하지 않습니다. Isaac Sim 5.1의 **PhysX raycast**를 사용하므로 감지할 장애물에 Collision이 설정되어 있어야 합니다. RTX 재질 반사·투과나 센서 노이즈를 모델링한 구현은 아닙니다.
+
+| 토픽 | 타입 | frame_id |
+| --- | --- | --- |
+| `/scan/front` | `sensor_msgs/msg/LaserScan` | `lidar_front_left_scan` |
+| `/scan/rear` | `sensor_msgs/msg/LaserScan` | `lidar_rear_right_scan` |
+| `/tf_static` | `tf2_msgs/msg/TFMessage` | `base_link` → 두 `*_scan` 프레임 |
+
+각 스캔은 270°, 해상도 0.5°(540개 빔), 거리 0.05–20 m, 목표 20 Hz입니다. 설정은 `../ros2_ws/src/amr_description/config/compact_amr.json`의 두 `lidar_*` 항목에서 변경합니다. 토픽의 timestamp는 시뮬레이션 시간이며, 실제 초당 발행 수는 앱 실행 속도에 따라 달라집니다.
+
+5.1 전용 LaserScan 발행 노드의 첫 메시지 시간 계산 오류를 피하기 위해 Bridge의 범용 `ROS2Publisher`를 사용합니다. 거리 배열은 실제 PhysX 데이터를 연결하며 `intensities`는 빈 배열입니다. 초기 빈 스캔은 발행하지 않습니다.
+
+센서는 각 `lidar_*_link/LidarSensor`에 생성합니다. 장착 원통 자체를 감지하지 않도록 스캔 평면을 링크 중심보다 0.025 m 높게 두며, 초기 제원 기준 지면에서 0.325 m입니다. PhysX는 수직 FOV가 양수여야 하므로 수직 FOV/해상도를 각각 1°로 설정합니다. 설치된 5.1에서 실제 데이터가 **수평 1행, zenith 0**임을 확인했습니다. 이 높이보다 낮은 물체는 검출되지 않을 수 있습니다.
+
+센서 TF는 Stage의 실제 장착 위치·방향에서 계산합니다. 별도의 `*_scan` 프레임을 사용하므로 `robot_state_publisher`가 발행하는 기존 장착 링크 TF와 중복되지 않습니다. `/odom`, `map` TF나 두 스캔의 병합은 아직 구현하지 않았습니다.
+
+```bash
+# 터미널 1: isaac_sim/에서 실행하고 Play 상태 유지
+bash run.sh
+
+# 터미널 2: 같은 ROS_DOMAIN_ID의 시스템 Jazzy 환경
+source /opt/ros/jazzy/setup.bash
+python3 check_topics.py
+ros2 topic echo /scan/front --once --qos-reliability best_effort
+ros2 topic echo /scan/rear --once --qos-reliability best_effort
+ros2 topic hz /scan/front
+ros2 topic hz /scan/rear
+rviz2
+```
+
+RViz의 Fixed Frame을 `base_link`로 설정하고 LaserScan 표시 두 개에 `/scan/front`, `/scan/rear`를 지정합니다. Reliability는 Best Effort로 설정합니다. 기본 장면은 바닥만 있어 거리 값이 모두 최대 거리 20 m여도 정상입니다. 스캔 평면 높이를 가로지르는 Cube를 추가하고 Collision을 적용한 뒤 확인하세요.
+
+원본 `omni_amr.usd`는 자동으로 덮어쓰지 않습니다. GUI에서 저장해도 다음 실행 시 센서·그래프를 재사용합니다. `--no-ros2`는 자동 구성을 생략하는 옵션이며, 이미 USD에 저장된 그래프를 삭제하는 옵션은 아닙니다.
+
+`check_topics.py` 하나로 IMU·네 휠·두 LiDAR·센서 TF를 함께 검사합니다. 기존의 개별 토픽 검사 파일은 이 파일로 통합했습니다. 검증 기록과 장애물 이동 테스트 재현 방법은 [LiDAR 연동 기록](../docs/lidar-integration.md)을 참고하세요. 공식 근거: [5.1 PhysX LiDAR](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/sensors/isaacsim_sensors_physx_lidar.html).
+
+## IMU와 실제 휠 피드백
+
+기본 `bash run.sh` 실행 시 `feedback.py`가 다음을 자동 구성합니다. `--no-ros2` 실행에서는 구성하지 않습니다.
+
+| 토픽 | 타입 | 데이터 |
+| --- | --- | --- |
+| `/imu/data` | `sensor_msgs/msg/Imu` | 중앙 물리 IMU의 각속도·가속도·시뮬레이션 기준 자세, frame `imu_link` |
+| `/joint_states` | `sensor_msgs/msg/JointState` | 로봇 articulation의 실제 관절 위치(rad)·속도(rad/s). 수동 롤러도 포함될 수 있음 |
+
+센서는 `.../imu_link/ImuSensor`에 생성됩니다. 그래프는 `/World/AMRFeedback`에 두며 기존 Clock/명령 그래프를 삭제하지 않습니다. 휠 피드백은 드라이브 목표값을 복사하는 것이 아니라 Isaac Sim의 `ROS2PublishJointState`가 articulation의 실제 상태를 읽습니다. 메시지 배열 순서를 가정하지 말고 `name`으로 네 휠 조인트를 찾습니다.
+
+설치된 5.1의 물리 센서 API를 사용합니다. IMU 센서 주기는 제원의 `sensors.imu.rate_hz`(현재 100 Hz)로 설정하고 필터 폭은 1입니다. 센서는 물리 시뮬레이션을 측정하고, 발행 그래프는 On Playback Tick에서 읽습니다. 따라서 토픽 발행은 앱 갱신 속도에도 제한되며 정확한 100 Hz 발행을 보장하지 않습니다. 실제 토픽 주기·중복 표본 여부는 `ros2 topic hz`와 timestamp로 확인하세요. 두 메시지의 header stamp는 Isaac Read Simulation Time을 사용합니다. 기존 `/clock`도 동일한 시뮬레이션 시간 설정으로 유지하세요.
+
+`readGravity=True`이므로 평평한 바닥에서 정지한 IMU의 가속도 Z는 약 +9.81 m/s²가 정상입니다. 각속도 단위는 rad/s입니다. 센서는 현재 노이즈·바이어스를 추가하지 않은 이상적인 시뮬레이션 센서이며, 자세 출력은 실제 하드웨어의 자세 융합기를 대체하는 구현이 아닙니다. 오도메트리, ROS TF 발행 및 직진 방향 보정 제어기는 이번 단계에 포함하지 않습니다.
+
+```bash
+# 터미널 1: isaac_sim/에서 실행
+bash run.sh
+
+# 터미널 2: 시스템 Jazzy 환경. Isaac Sim과 ROS_DOMAIN_ID를 맞춥니다.
+source /opt/ros/jazzy/setup.bash
+ros2 topic echo /imu/data --once
+ros2 topic echo /joint_states --once
+python3 check_topics.py
+# 주행 중 실제 바퀴 속도가 0이 아닌지도 검사하려면:
+python3 check_topics.py --require-motion
+
+# 각 명령은 따로 실행합니다.
+ros2 topic hz /imu/data
+ros2 topic hz /joint_states
+```
+
+위 통합 검사 스크립트는 `isaac_sim/` 경로에서 시스템 Python으로 실행하며 IMU·휠뿐 아니라 두 LiDAR와 센서 TF도 모두 수신해야 통과합니다. Play 상태에서 측정합니다. 휠 배열에서 `front_left_wheel_joint`, `front_right_wheel_joint`, `rear_left_wheel_joint`, `rear_right_wheel_joint`를 골라 표시합니다.
+
+저속 전진 검증에는 `bash run.sh --vx 0.2 --drive-seconds 10`을 사용하고 바닥 밖으로 벗어나기 전에 종료합니다. 바퀴 속도 부호는 모두 양수, 감속 후에는 0 부근이어야 합니다. 회전 검증에는 `--wz 0.3`을 사용하며 IMU Z 각속도의 변화와 부호를 확인합니다. 목표값과 실제 값이 완전히 일치한다고 가정하지 않습니다.
+
+설정은 실행 중 메모리의 Stage에 적용하며 기존 `omni_amr.usd`를 자동으로 덮어쓰지 않습니다. GUI에서 저장하면 다음 실행 시 같은 센서와 그래프 노드를 재사용합니다. 그래프 입력이 다른 곳에 연결됐거나 노드 타입이 다르면 덮어쓰지 않고 오류를 표시합니다. 실행 중 다른 Stage를 여는 경우에는 그 파일로 다시 실행해야 자동 피드백 구성이 적용됩니다.
+
+오프라인 검증: `test/check_feedback.py`는 실제 USD와 설치된 5.1 노드 스키마를 이용해 그래프 연결·센서 주기·중복 생성 방지·잘못된 모델 거부를 검사합니다. 실제 물리 측정과 DDS 발행 검증은 별도로 수행해야 합니다.
+
+2026-11-02 검증 결과: 오프라인 피드백 검사 7개와 기존 재생 검사 11개, 메카넘/모델 검사가 통과했습니다. 저장된 `omni_amr.usd`를 GPU 헤드리스 모드에서 열어 0.1 m/s 저속 명령을 주고, 별도 시스템 Jazzy 프로세스에서 IMU와 네 휠의 실제 상태를 수신했습니다. 가속 초기 휠 속도는 약 0.28–0.29 rad/s, IMU 가속도는 약 `[0.54, -0.03, 9.92]` m/s²였습니다. 두 프로세스 모두 종료 코드 0입니다. 이 값은 가속 중 한 표본이며 성능·오차 보정 완료를 뜻하지 않습니다. 회전 시 각속도 부호, 센서 주기 및 정지 상태 오차는 후속 검증 대상입니다.
+
+공식 근거: [5.1 IMU 센서](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/sensors/isaacsim_sensors_physics_imu.html), [ROS 2 Joint State](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/ros2_tutorials/tutorial_ros2_manipulation.html).
 
 ## 여기서 실행
 
@@ -58,6 +140,8 @@ bash run.sh --help
 
 `ISAAC_SIM_PYTHON`을 생략하면 프로젝트와 같은 상위 폴더의 `IsaacSim/python.sh`를 사용합니다. 현재 `/home/buddha/my_workspace/IsaacSim`에서 Isaac Sim 5.1.0 설치를 확인했습니다. 다른 설치를 사용할 때만 환경변수를 지정합니다. 런처는 `PYTHONPATH`와 `PYTHONHOME`을 해제해 기존 ROS Python 경로 유입을 막습니다.
 
+Standalone 설치의 내장 `exts/isaacsim.ros2.bridge/jazzy/lib`가 있으면 시스템 ROS의 `LD_LIBRARY_PATH`·ament/colcon 경로도 분리하고, 내장 Jazzy 라이브러리와 기본 Fast DDS를 사용합니다. 다른 Python 실행 파일을 지정하면서 동일한 standalone 설치를 쓸 때는 `ISAAC_SIM_ROOT`에 해당 설치 루트를 지정할 수 있습니다. 외부 ROS 터미널은 시스템 Jazzy를 계속 사용합니다. Bridge 확장 등록 직후에는 앱 갱신을 완료한 다음 Stage를 교체해 초기화되지 않은 그래프에 접근하지 않도록 합니다.
+
 기본 실행은 이 폴더의 `omni_amr.usd`를 직접 엽니다. 저장된 로봇과 Action Graph를 사용하며 URDF 재생성·로봇 중복 가져오기·지면 중복 생성·저장 파일 덮어쓰기를 하지 않습니다. 편집 후 `Ctrl+S`로 저장하세요. 파일이 없으면 오류를 표시하고 종료하며 빈 장면으로 대체하지 않습니다. Bridge가 필요 없는 테스트에는 `--no-ros2`를 사용합니다. Bridge는 Isaac Sim 내장 Jazzy 라이브러리를 사용하고 외부 ROS 노드와 `ROS_DOMAIN_ID`를 맞춥니다.
 
 `--new-scene`을 지정할 때만 제원에서 URDF를 재생성하고 새 로봇·지면을 구성합니다. 생성된 정지 장면은 `build/amr_scene.usda`로 내보냅니다. `omni_amr.usd`는 변경하지 않습니다. 모터 4개만 속도 제어하며 롤러는 수동 회전합니다. 4.5/5.x URDF 명령과 6.x 새 importer API를 구분하는 코드가 있지만 실제 설치 버전별 실행 검증은 아직 하지 않았습니다.
@@ -68,7 +152,7 @@ bash run.sh --help
 
 ## ROS launch와의 관계
 
-GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명시적으로 활성화합니다. `Window → Graph Editors → Action Graph`에서 편집기를 엽니다. 메뉴가 없으면 `Window → Extensions`에서 해당 확장의 활성화 상태를 확인하세요. ROS 2 Bridge도 기본 활성화하지만 토픽 그래프는 저장한 USD의 내용을 사용하며 자동 생성하지 않습니다.
+GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명시적으로 활성화합니다. `Window → Graph Editors → Action Graph`에서 편집기를 엽니다. 메뉴가 없으면 `Window → Extensions`에서 해당 확장의 활성화 상태를 확인하세요. ROS 2 Bridge와 IMU·휠·LiDAR 발행 그래프는 기본 활성화합니다. 기존 USD의 다른 그래프는 유지합니다.
 
 - `ros2 launch amr_description display.launch.py`: RViz에서 형상·TF 확인용. Isaac Sim을 실행하지 않습니다.
 - `bash run.sh`: Isaac Sim 모델·물리 주행 확인용. ROS launch 없이 실행합니다.
@@ -83,6 +167,10 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `scene.py` | 편집기 확장, Stage·지면·조명·물리 환경 구성 |
 | `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
 | `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
+| `feedback.py` | 물리 IMU 생성, 실제 조인트 상태·IMU ROS 발행 그래프 구성 |
+| `check_topics.py` | 별도 ROS 터미널에서 IMU·네 휠·두 LiDAR·센서 TF를 한 번에 검사 |
+| `lidar.py` | 두 PhysX 라이다 생성, LaserScan·센서 TF 발행 그래프 구성 |
+| `test/run_lidar_fixture.py` | GPU/DDS 통합 검증용 이동 장애물 장면, 원본 USD 저장 안 함 |
 | `mecanum.py` | 시뮬레이터에 의존하지 않는 메카넘 역기구학·속도 제한 |
 | `simulation.py` | 장면 조립·저장, 재생 루프와 종료 시 정지 처리 |
 
@@ -108,10 +196,11 @@ USD 라이브러리로 기존 파일의 빈 경로를 재현했고 `/World` 복�
 python3 ../ros2_ws/src/amr_description/test/check_model.py
 python3 test/check_mecanum.py
 python3 test/check_simulation.py
+python3 test/check_lidar.py
 ```
 
 위 검사는 표준 라이브러리만 사용하며 링크 트리·질량·관성·롤러 축·바퀴 속도 여유·명령 속도 제한을 검증합니다. 원통 롤러는 단순화된 형상이라 접촉 진동과 슬립 튜닝이 필요합니다. 실제 주행 시 지면 마찰, 접촉 안정성, 롤러 형상, 모터 게인을 검증해야 합니다.
 
-`my_workspace/IsaacSim`의 standalone 5.1.0 설치를 기본 런타임으로 사용합니다. 별도의 Python 3.10/Isaac Sim 4.5 설치 흔적 및 시스템 `isaacsim` 명령과 구분합니다. 이 작업 환경에서는 NVIDIA 드라이버 통신이 실패하여 Isaac Sim GUI/물리 실행 검증은 미완료입니다. EULA 동의와 설치·드라이버 설정은 사용자의 Isaac Sim 환경에서 완료해야 합니다.
+`my_workspace/IsaacSim`의 standalone 5.1.0 설치를 기본 런타임으로 사용합니다. 별도의 Python 3.10/Isaac Sim 4.5 설치 흔적 및 시스템 `isaacsim` 명령과 구분합니다. 2026-11-02 RTX 4060 Laptop GPU에서 헤드리스 물리 실행 및 별도 ROS 2 프로세스의 IMU·휠·두 LiDAR 수신을 검증했습니다. GUI/RViz 화면 검증은 별도입니다.
 
 참고: [URDF importer 예제](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/importer_exporter/import_urdf.html), [6.x importer 변경점](https://docs.isaacsim.omniverse.nvidia.com/latest/migration_guides/isaac_sim_6_0/urdf_mjcf_importer_exporter_pipeline.html).
