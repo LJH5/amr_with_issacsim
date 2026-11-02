@@ -23,6 +23,7 @@ def main():
         from pxr import Gf, UsdGeom, UsdPhysics
         from drive import configure_drives
         from feedback import configure_feedback
+        from camera import configure_camera
         from lidar import configure_lidars, LIDAR_NAMES, SENSOR_NAME
         from scene import create_stage
 
@@ -31,6 +32,7 @@ def main():
         stage = create_stage(True, SIM_DIR / 'omni_amr.usd', True)
         configure_drives(stage, spec)
         configure_feedback(stage, spec)
+        configure_camera(stage, spec)
         configure_lidars(stage, spec)
         # A repeated setup must reuse all graph nodes and sensors.
         configure_lidars(stage, spec)

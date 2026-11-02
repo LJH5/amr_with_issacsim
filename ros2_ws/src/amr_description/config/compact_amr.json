@@ -65,7 +65,11 @@
       "horizontal_fov_deg": 87.0,
       "depth_range_m": [0.2, 10.0],
       "rate_hz": 30,
-      "model": "generic_rgbd_realsense_like"
+      "model": "generic_rgbd_realsense_like",
+      "color_topic": "/camera/color/image_raw",
+      "depth_topic": "/camera/depth/image_raw",
+      "color_info_topic": "/camera/color/camera_info",
+      "depth_info_topic": "/camera/depth/camera_info"
     },
     "imu": {
       "xyz_m": [0.0, 0.0, 0.19],

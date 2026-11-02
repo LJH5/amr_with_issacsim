@@ -4,7 +4,7 @@
 
 Ubuntu 24.04 LTS 환경에서 소형 4륜 메카넘 AMR의 시뮬레이션, 로봇 제어, 지도 작성(SLAM), 위치 추정, 경로 계획 및 자율주행을 단계적으로 구현합니다. 최고 병진 속도는 1.5 m/s이며, 초기 모델은 센서 포함 예약 크기 0.48 × 0.44 × 0.34 m로 설계했습니다. 검증된 ROS 2 오픈소스를 활용하고, 이후 실제 로봇 하드웨어로 확장할 수 있도록 모듈형 아키텍처를 지향합니다.
 
-Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백 및 대각 LiDAR 두 개의 ROS 2 연동을 검증했습니다. RGB-D 카메라와 SLAM/Nav2 통합은 후속 단계입니다.
+Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백, 대각 LiDAR 두 개 및 전방 RGB-D 카메라의 ROS 2 연동을 검증했습니다. 오도메트리와 SLAM/Nav2 통합은 후속 단계입니다.
 
 > **프로젝트 상태:** 초기 설계 및 개발 환경 구성 단계. 아래 디렉터리와 실행 절차는 목표 구조이며, 구현 진행에 따라 업데이트합니다.
 >
@@ -86,8 +86,8 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 
 - [ ] **01. 환경 구성:** Ubuntu / ROS 2 Jazzy / Python venv / 빌드 도구 / Isaac Sim 호환성 검증
 - [ ] **02. 프로젝트 초기화:** GitHub, 패키지 구조, 개발 규칙 및 문서화 체계
-- [ ] **03. 로봇 모델:** 소형 메카넘·IMU·두 LiDAR 물리 실행 검증, RGB-D 카메라 연동 예정
-- [ ] **04. 시뮬레이터 연동:** IMU·휠·두 LaserScan 검증, 카메라·구동 명령 통합 예정
+- [ ] **03. 로봇 모델:** 소형 메카넘·IMU·두 LiDAR·RGB-D 카메라 실행 검증, 모델/센서 튜닝 진행
+- [ ] **04. 시뮬레이터 연동:** IMU·휠·두 LaserScan·RGB-D 검증, 구동 명령 통합 예정
 - [ ] **05. 기본 제어:** `/cmd_vel`, 휠 제어, `/odom`, TF 검증
 - [ ] **06. Mapping:** SLAM Toolbox로 맵 작성 및 저장
 - [ ] **07. Localization:** AMCL 기반 지도 내 위치 추정
