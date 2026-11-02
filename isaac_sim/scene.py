@@ -13,9 +13,14 @@ def create_stage(headless, scene_path=None, ros2=False):
         manager.set_extension_enabled_immediate('omni.graph.window.action', True)
     manager.set_extension_enabled_immediate('isaacsim.asset.importer.urdf', True)
     if ros2:
+        # Register saved IMU schemas/nodes before the USD scene is opened.
+        manager.set_extension_enabled_immediate('isaacsim.sensors.physics', True)
+        manager.set_extension_enabled_immediate('isaacsim.sensors.physx', True)
         manager.set_extension_enabled_immediate('isaacsim.ros2.bridge', True)
         if not manager.is_extension_enabled('isaacsim.ros2.bridge'):
             raise RuntimeError('ROS 2 Bridge could not be enabled; check Isaac Sim ROS libraries')
+        # Finish Bridge annotator registration before replacing its startup Stage.
+        omni.kit.app.get_app().update()
 
     context = omni.usd.get_context()
     if scene_path is not None:
