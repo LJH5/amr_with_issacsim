@@ -15,6 +15,7 @@ def create_stage(headless, scene_path=None, ros2=False):
     if ros2:
         # Register saved IMU schemas/nodes before the USD scene is opened.
         manager.set_extension_enabled_immediate('isaacsim.sensors.physics', True)
+        manager.set_extension_enabled_immediate('isaacsim.sensors.physx', True)
         manager.set_extension_enabled_immediate('isaacsim.ros2.bridge', True)
         if not manager.is_extension_enabled('isaacsim.ros2.bridge'):
             raise RuntimeError('ROS 2 Bridge could not be enabled; check Isaac Sim ROS libraries')

@@ -177,7 +177,7 @@ class SimulationChecks(unittest.TestCase):
         modules = {'omni': omni, 'omni.timeline': omni.timeline, 'omni.usd': omni.usd}
         hooks = {name: Mock() for name in (
             'create_stage', 'import_robot', 'add_environment', 'configure_drives',
-            'configure_feedback', 'run_loop')}
+            'configure_feedback', 'configure_lidars', 'run_loop')}
         hooks['create_stage'].return_value = stage
         args = options(scene=SIM_DIR / 'omni_amr.usd')
         with patch.dict(sys.modules, modules), patch.multiple('simulation', **hooks):
@@ -187,6 +187,7 @@ class SimulationChecks(unittest.TestCase):
         hooks['add_environment'].assert_not_called()
         stage.GetRootLayer.assert_not_called()
         hooks['configure_feedback'].assert_called_once_with(stage, SPEC)
+        hooks['configure_lidars'].assert_called_once_with(stage, SPEC)
         hooks['run_loop'].assert_called_once()
 
 

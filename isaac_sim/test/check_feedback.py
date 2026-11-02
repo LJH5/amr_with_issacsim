@@ -21,7 +21,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 SIM_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIM_DIR))
 from feedback import GRAPH_PATH, configure_feedback, create_imu_sensor, find_feedback_prims
-from check_feedback_topics import imu_values, wheel_values
+from check_topics import imu_values, wheel_values
 
 
 SPEC = json.loads((SIM_DIR.parent / 'ros2_ws/src/amr_description/config/compact_amr.json').read_text())
