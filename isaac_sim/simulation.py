@@ -3,6 +3,7 @@
 """Scene assembly and simulation playback lifecycle."""
 
 from drive import apply_command, configure_drives, ramp_command
+from feedback import configure_feedback
 from robot import import_robot
 from scene import add_environment, create_stage
 
@@ -19,6 +20,10 @@ def run(app, args, spec, sim_dir, description):
         import_robot(stage, description / "urdf/compact_amr.urdf", build)
         add_environment(stage)
     drives = configure_drives(stage, spec)
+    if args.ros2:
+        configure_feedback(stage, spec)
+        # Process graph/schema changes before physics warm-start evaluates nodes.
+        app.update()
     # Save at rest; launching this saved scene never starts a drive command.
     if args.scene is None:
         stage.GetRootLayer().Export(str(build / 'amr_scene.usda'))

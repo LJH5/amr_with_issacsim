@@ -16,8 +16,7 @@ def wheel_targets(spec, vx, vy, wz):
     maximum = motion['max_yaw_rate_rad_s']
     wz = max(-maximum, min(maximum, wz))
     targets = []
-    for xsign, ysign, hand in zip((1, 1, -1, -1), (1, -1, 1, -1),
-                                 wheels['roller_handedness']):
+    for xsign, ysign, hand in zip((1, 1, -1, -1), (1, -1, 1, -1), wheels['roller_handedness']):
         x = xsign * wheels['wheelbase_m'] / 2
         y = ysign * wheels['track_m'] / 2
         targets.append((vx - wz*y + hand*(vy + wz*x)) / wheels['radius_m'])
