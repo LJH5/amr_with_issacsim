@@ -6,6 +6,8 @@ Ubuntu 24.04 LTS 환경에서 소형 4륜 메카넘 AMR의 시뮬레이션, 로�
 
 Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백, 대각 LiDAR 두 개 및 전방 RGB-D 카메라의 ROS 2 연동을 검증했습니다. 오도메트리와 SLAM/Nav2 통합은 후속 단계입니다.
 
+ROS 2 C++ 키보드 주행은 [my_amr 실행 안내](ros2_ws/src/my_amr/README.md)를 따릅니다. 키보드가 `/cmd_vel`을 발행하고 C++ 노드가 네 휠 속도를 계산하며, Isaac Sim Bridge가 이를 조인트에 적용합니다. WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료를 지원합니다.
+
 > **프로젝트 상태:** 초기 설계 및 개발 환경 구성 단계. 아래 디렉터리와 실행 절차는 목표 구조이며, 구현 진행에 따라 업데이트합니다.
 >
 > **이름 안내:** 저장소명 `amr_with_issacsim`은 확정된 프로젝트 이름입니다. 시뮬레이터의 공식 명칭은 **NVIDIA Isaac Sim**입니다.
@@ -99,8 +101,8 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 - [ ] **01. 환경 구성:** Ubuntu / ROS 2 Jazzy / Python venv / 빌드 도구 / Isaac Sim 호환성 검증
 - [ ] **02. 프로젝트 초기화:** GitHub, 패키지 구조, 개발 규칙 및 문서화 체계
 - [ ] **03. 로봇 모델:** 소형 메카넘·IMU·두 LiDAR·RGB-D 카메라 실행 검증, 모델/센서 튜닝 진행
-- [ ] **04. 시뮬레이터 연동:** IMU·휠·두 LaserScan·RGB-D 검증, 구동 명령 통합 예정
-- [ ] **05. 기본 제어:** `/cmd_vel`, 휠 제어, `/odom`, TF 검증
+- [ ] **04. 시뮬레이터 연동:** IMU·휠·두 LaserScan·RGB-D 및 C++ 바퀴 명령 연결
+- [ ] **05. 기본 제어:** 키보드·`/cmd_vel`·휠 속도 목표·timeout 구현, `/odom` 및 주행 보정 예정
 - [ ] **06. Mapping:** SLAM Toolbox로 맵 작성 및 저장
 - [ ] **07. Localization:** AMCL 기반 지도 내 위치 추정
 - [ ] **08. Navigation:** Nav2 경로 계획, 목적지 이동, 회피·복구 동작

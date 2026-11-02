@@ -19,7 +19,8 @@ DESCRIPTION = SIM_DIR.parent / "ros2_ws/src/amr_description"
 def main():
     args = arguments()
     spec = json.loads((DESCRIPTION / 'config/compact_amr.json').read_text())
-    wheel_targets(spec, args.vx, args.vy, args.wz)  # Validate before starting Kit.
+    if args.control == 'cli':
+        wheel_targets(spec, args.vx, args.vy, args.wz)  # Legacy CLI validation before Kit.
     if args.scene is None:
         runpy.run_path(str(DESCRIPTION / 'scripts/generate_robot.py'), run_name='__main__')
     try:

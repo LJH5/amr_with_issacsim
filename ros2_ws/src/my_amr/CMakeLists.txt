@@ -21,20 +21,42 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
-add_executable(my_amr_node src/my_amr_node.cpp)
+add_library(mecanum_drive src/mecanum_drive.cpp)
+target_compile_features(mecanum_drive PUBLIC cxx_std_17)
+target_include_directories(mecanum_drive PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+
+add_executable(my_amr_node src/my_amr_node.cpp src/drive_node.cpp)
+target_link_libraries(my_amr_node mecanum_drive)
 set_target_properties(my_amr_node PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 ament_target_dependencies(
   my_amr_node
   "rclcpp"
+  "geometry_msgs"
+  "sensor_msgs"
 )
 
-install(TARGETS my_amr_node
-  DESTINATION lib/${PROJECT_NAME})
+add_executable(keyboard_teleop src/keyboard_teleop.cpp)
+target_compile_features(keyboard_teleop PRIVATE cxx_std_17)
+ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs)
+
+install(TARGETS my_amr_node keyboard_teleop mecanum_drive
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_mecanum_drive test/test_mecanum_drive.cpp)
+  target_link_libraries(test_mecanum_drive mecanum_drive)
 endif()
 
 ament_package()

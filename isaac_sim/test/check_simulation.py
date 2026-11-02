@@ -55,6 +55,9 @@ class Playback:
     def stop(self):
         self.stopped = True
 
+    def is_playing(self):
+        return self.playing
+
     def is_running(self):
         return len(self.samples) < len(self.times)
 
@@ -69,7 +72,7 @@ class Playback:
 
 def options(**overrides):
     values = dict(vx=0.3, vy=0.0, wz=0.0, drive_seconds=2.0, steps=0,
-                  headless=False, scene=None, ros2=True)
+                  headless=False, scene=None, ros2=True, control='cli')
     values.update(overrides)
     return SimpleNamespace(**values)
 
@@ -161,10 +164,33 @@ class SimulationChecks(unittest.TestCase):
             args = arguments()
         self.assertEqual(args.scene, SIM_DIR / 'omni_amr.usd')
         self.assertTrue(args.ros2)
+        self.assertEqual(args.control, 'ros')
         with patch.object(sys, 'argv', ['run_amr.py', '--new-scene', '--no-ros2']):
             args = arguments()
         self.assertIsNone(args.scene)
         self.assertFalse(args.ros2)
+        self.assertEqual(args.control, 'cli')
+
+    def test_ros_wheel_commands_bypass_body_kinematics(self):
+        playback = Playback([0.0, 0.1])
+        source = Mock()
+        source.poll.return_value = [1, -1, 2, -2]
+        with patch('simulation.apply_command', side_effect=AssertionError('Body IK used in ROS mode')):
+            run_loop(playback, playback, options(control='ros'), SPEC, playback.drives,
+                     command_source=source)
+        self.assertEqual(source.poll.call_count, 2)
+        self.assertEqual(playback.samples[0], tuple(map(math.degrees, [1, -1, 2, -2])))
+        self.assertEqual([drive.value for drive in playback.drives], [0.0] * 4)
+
+    def test_paused_ros_control_discards_cached_commands(self):
+        playback = Playback([0.0, 0.1])
+        playback.is_playing = lambda: False
+        source = Mock()
+        run_loop(playback, playback, options(control='ros'), SPEC, playback.drives,
+                 command_source=source)
+        source.poll.assert_not_called()
+        self.assertEqual(source.reset.call_count, 2)
+        self.assertEqual(playback.samples, [(0.0,) * 4] * 2)
 
     def test_saved_scene_is_not_regenerated_or_exported(self):
         from simulation import run

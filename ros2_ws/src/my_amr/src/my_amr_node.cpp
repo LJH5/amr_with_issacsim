@@ -15,13 +15,24 @@
 #include <memory>
 
 #include "rclcpp/rclcpp.hpp"
+#include "my_amr/drive_node.hpp"
 
+/**
+ * @brief ROS를 초기화하고 AMR 주행 제어 노드의 이벤트 루프를 실행한다.
+ * @param argc ROS 실행 인자를 포함한 명령행 인자 개수.
+ * @param argv ROS 파라미터·리매핑을 포함한 명령행 인자 배열.
+ * @return 정상 종료이면 0, 노드 생성 또는 실행 오류이면 1.
+ */
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto node = std::make_shared<rclcpp::Node>("my_amr_node");
-  RCLCPP_INFO(node->get_logger(), "my_amr node started");
-  rclcpp::spin(node);
+  try {
+    rclcpp::spin(std::make_shared<my_amr::DriveNode>());
+  } catch (const std::exception & error) {
+    RCLCPP_ERROR(rclcpp::get_logger("my_amr_node"), "%s", error.what());
+    rclcpp::shutdown();
+    return 1;
+  }
   rclcpp::shutdown();
   return 0;
 }

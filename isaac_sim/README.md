@@ -6,6 +6,10 @@
 
 ## 소형 모델 제원
 
+ROS 주행은 `bash run.sh --control ros`를 사용합니다(Bridge 활성화·CLI 속도 미지정 시 기본 모드). 이 경로는 `/cmd_vel`을 직접 구독하거나 메카넘 계산을 하지 않습니다. `ros2_ws`의 C++ 제어 노드가 발행한 `/wheel_commands`의 네 휠 이름·각속도 [rad/s]를 받아 조인트에 적용합니다. [my_amr 실행 안내](../ros2_ws/src/my_amr/README.md)에 따라 C++ 제어와 키보드를 별도 터미널에서 실행하세요. 키는 WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료입니다.
+
+`/World/AMRWheelCommands`에 명령 구독 그래프를 자동 생성합니다. 명령은 이름으로 매핑하고 통신 단절 시 독립적인 monotonic watchdog으로 정지합니다. 기존 `--vx/--vy/--wz`는 초기 검증용 CLI 모드를 선택하고, `--no-ros2`도 CLI 모드를 사용합니다. `--control ros`와 CLI 속도를 동시에 지정하면 오류를 표시합니다. ROS 모드에서는 `--drive-seconds`를 사용하지 않습니다.
+
 | 항목 | 초기 설계값 |
 | --- | --- |
 | 전체 공간 예약 크기 | 길이 0.48 × 폭 0.44 × 높이 0.34 m (센서·휠 돌출 여유 포함) |
@@ -180,7 +184,7 @@ Standalone 설치의 내장 `exts/isaacsim.ros2.bridge/jazzy/lib`가 있으면 �
 
 실행 중 `File → Open/New`로 Stage를 바꾸면 기존 휠 핸들을 해제하고 CLI 제어를 중단한 채 UI를 유지합니다. 새 장면에서 CLI 주행을 하려면 그 파일을 `--scene`으로 지정해 다시 실행하세요. 이전 코드는 장면 변경 후 무효화된 휠 핸들에 접근해 예외로 종료될 수 있었습니다.
 
-속도 명령은 가속도를 제한하고 병진 속도 벡터를 1.5 m/s로 제한합니다. `--drive-seconds` 경과 후 속도 목표를 0으로 바꾸지만 물리적인 정지 거리가 0이라는 뜻은 아닙니다. 작은 바닥이므로 최고 속도·장시간 주행 전 바닥 크기를 확장해야 합니다. 현재 CLI 속도 명령은 ROS `/cmd_vel`과 연결되어 있지 않습니다.
+운영 ROS 모드의 메카넘 계산과 속도·가속도 제한은 C++ 제어 노드에서 수행합니다. 레거시 CLI 모드도 속도·가속도를 제한하고 `--drive-seconds` 경과 후 목표를 0으로 바꿉니다. 목표 0이 물리적인 정지 거리가 0이라는 뜻은 아닙니다. 작은 바닥이므로 최고 속도·장시간 주행 전 바닥 크기를 확장해야 합니다.
 
 ## ROS launch와의 관계
 
@@ -199,6 +203,7 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `scene.py` | 편집기 확장, Stage·지면·조명·물리 환경 구성 |
 | `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
 | `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
+| `ros_commands.py` | ROS 바퀴 명령 구독·이름 매핑·통신 watchdog. 메카넘 계산 없음 |
 | `feedback.py` | 물리 IMU 생성, 실제 조인트 상태·IMU ROS 발행 그래프 구성 |
 | `check_topics.py` | 별도 ROS 터미널에서 IMU·네 휠·두 LiDAR·RGB-D·CameraInfo·센서 TF를 한 번에 검사 |
 | `camera.py` | 전방 USD Camera, RGB·깊이·카메라 정보·광학 프레임 TF 구성 |
