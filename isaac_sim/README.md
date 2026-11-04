@@ -236,6 +236,8 @@ USD 라이브러리로 기존 파일의 빈 경로를 재현했고 `/World` 복�
 
 ## 검증과 제한
 
+장면 로딩 중 `Aborted (core dumped)`와 USD `Corrupt asset` 오류가 발생하면 [USD 손상 복구 기록](../docs/usd-scene-recovery.md)을 참고하세요. 원본을 먼저 백업하고 정상 커밋의 후보를 검증한 뒤 복구합니다.
+
 ```bash
 python3 ../ros2_ws/src/amr_description/test/check_model.py
 python3 test/check_mecanum.py
