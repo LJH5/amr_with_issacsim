@@ -2,7 +2,13 @@
 
 이 폴더가 시뮬레이터 실행 진입점입니다. ROS용 원본 모델과 제원은 `../ros2_ws/src/amr_description/`에 두고, 여기서 불러와 지면·조명·물리 장면 및 바퀴 구동을 구성합니다. USD와 실행 스크립트를 ROS 패키지로 옮길 필요는 없습니다.
 
+이 폴더는 **시뮬레이터 구성과 연결**을 담당합니다. 로봇 생성·가져오기, LiDAR·카메라·IMU, 센서 발행, ROS에서 받은 바퀴 명령의 조인트 적용은 여기서 개발합니다. `/cmd_vel` 처리·메카넘 계산·속도 제한·주행 timeout·오도메트리 등 **AMR 제어 로직은 `../ros2_ws/src/`의 ROS 2 C++ 패키지**에서 개발합니다. 기존 `mecanum.py`와 CLI 주행은 초기 검증용이며 운영 제어의 기준 구현으로 확장하지 않습니다. 상세 규칙은 [AGENTS.md](../AGENTS.md)의 개발 위치와 책임 경계를 따릅니다.
+
 ## 소형 모델 제원
+
+ROS 주행은 `bash run.sh --control ros`를 사용합니다(Bridge 활성화·CLI 속도 미지정 시 기본 모드). 이 경로는 `/cmd_vel`을 직접 구독하거나 메카넘 계산을 하지 않습니다. `ros2_ws`의 C++ 제어 노드가 발행한 `/wheel_commands`의 네 휠 이름·각속도 [rad/s]를 받아 조인트에 적용합니다. [my_amr 실행 안내](../ros2_ws/src/my_amr/README.md)에 따라 C++ 제어와 키보드를 별도 터미널에서 실행하세요. 키는 WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료입니다.
+
+`/World/AMRWheelCommands`에 명령 구독 그래프를 자동 생성합니다. 명령은 이름으로 매핑하고 통신 단절 시 독립적인 monotonic watchdog으로 정지합니다. 기존 `--vx/--vy/--wz`는 초기 검증용 CLI 모드를 선택하고, `--no-ros2`도 CLI 모드를 사용합니다. `--control ros`와 CLI 속도를 동시에 지정하면 오류를 표시합니다. ROS 모드에서는 `--drive-seconds`를 사용하지 않습니다.
 
 | 항목 | 초기 설계값 |
 | --- | --- |
@@ -29,7 +35,37 @@
 | 전방 RGB-D | `(0.225, 0, 0.235)` | 640×480 / 30 Hz, RealSense 계열을 가정한 일반 모델 |
 | 중앙 IMU | `(0, 0, 0.19)` | 100 Hz |
 
-ROS 2가 활성화된 실행에서는 물리 IMU, 실제 조인트 피드백, 두 PhysX LiDAR의 스캔을 발행합니다. RGB-D 이미지는 아직 구현하지 않았습니다. 두 LiDAR의 배치는 수평 시야를 넓히기 위한 것이며, 차체 가림·근접 사각·낮은 장애물 검출을 보장하지 않습니다.
+ROS 2가 활성화된 실행에서는 물리 IMU, 실제 조인트 피드백, 두 PhysX LiDAR의 스캔과 전방 RGB-D 영상·카메라 정보를 발행합니다. 두 LiDAR의 배치는 수평 시야를 넓히기 위한 것이며, 차체 가림·근접 사각·낮은 장애물 검출을 보장하지 않습니다.
+
+## 전방 RGB-D 카메라
+
+`bash run.sh` 실행 시 `camera.py`가 전방 장착 링크에 실제 USD Camera와 `/World/AMRCamera` 그래프를 구성합니다. 수동 그래프 편집이나 RealSense ROS 드라이버 설치는 필요하지 않습니다. RealSense 계열의 배치를 가정한 **일반 pinhole RGB-D 모델**이며, 특정 제품의 스테레오 매칭·노이즈·왜곡을 구현한 것은 아닙니다.
+
+| 토픽 | 타입 / 인코딩 | 내용 |
+| --- | --- | --- |
+| `/camera/color/image_raw` | `sensor_msgs/msg/Image`, `rgb8` | 렌더링한 컬러 영상 |
+| `/camera/depth/image_raw` | `sensor_msgs/msg/Image`, `32FC1` | 영상 평면 기준 Z 깊이, **미터** 단위 |
+| `/camera/color/camera_info` | `sensor_msgs/msg/CameraInfo` | 컬러 영상의 내부 파라미터 |
+| `/camera/depth/camera_info` | `sensor_msgs/msg/CameraInfo` | 같은 광학계에 정렬된 깊이 영상의 내부 파라미터 |
+
+해상도는 640×480, 수평 FOV는 87°, clipping range는 0.2–10 m입니다. 장착 위치는 기존 `(0.225, 0, 0.235)` m입니다. 로봇 +X 방향을 바라보며 메시지의 `frame_id`는 `camera_front_rgbd_optical_frame`(+Z 전방·+X 우측·+Y 아래)입니다. `base_link`에서 이 프레임으로 정적 TF를 발행합니다. 기존 URDF optical 링크와 충돌하지 않도록 별도 프레임 이름을 사용합니다.
+
+RGB와 depth는 하나의 render product를 공유하므로 같은 시야에 정렬됩니다. `check_topics.py`는 두 영상이 같은 timestamp를 갖는 표본도 확인합니다. 가까운 물체가 없으면 깊이 값이 `inf` 또는 무효 값일 수 있으며, 검사 출력의 `center_depth_m: null`은 중앙 픽셀에 유효한 깊이가 없다는 뜻입니다.
+
+제원·토픽은 `../ros2_ws/src/amr_description/config/compact_amr.json`의 `sensors.camera_front`에서 변경합니다. 목표 주기는 30 Hz이며, 현재 60 Hz Stage에서 `frameSkipCount=1`로 설정합니다. 제원의 주기는 Stage 렌더 기준 주기를 정수로 나눌 수 있어야 합니다. 실제 수신 속도는 GPU 처리량·초기화·DDS 전송에 따라 낮아질 수 있습니다.
+
+```bash
+# isaac_sim/에서 실행
+bash run.sh
+
+# 별도 시스템 Jazzy 터미널: 카메라를 포함한 모든 센서 검사
+source /opt/ros/jazzy/setup.bash
+python3 check_topics.py
+```
+
+RViz에서 Image 표시를 추가하고 `/camera/color/image_raw`를 선택합니다. Reliability는 Best Effort로 설정합니다. Camera 표시를 사용할 때는 Fixed Frame을 `base_link`로 두고 컬러 영상과 CameraInfo 토픽을 지정합니다. 정면에 시각 형상이 있는 물체를 두면 영상과 깊이를 확인할 수 있습니다. 카메라는 시각 형상을 렌더링하므로 LiDAR와 달리 Collider가 없어도 영상에 나타납니다.
+
+센서와 그래프 설정은 메모리의 Stage에 적용하며 원본 `omni_amr.usd`는 자동 저장하지 않습니다. `--new-scene`도 같은 카메라를 구성합니다. `--no-ros2`는 자동 센서 구성을 생략합니다. GPU/ROS 검증 절차는 [카메라 연동 기록](../docs/camera-integration.md)을 참고하세요.
 
 ## 두 LiDAR 연동
 
@@ -148,7 +184,7 @@ Standalone 설치의 내장 `exts/isaacsim.ros2.bridge/jazzy/lib`가 있으면 �
 
 실행 중 `File → Open/New`로 Stage를 바꾸면 기존 휠 핸들을 해제하고 CLI 제어를 중단한 채 UI를 유지합니다. 새 장면에서 CLI 주행을 하려면 그 파일을 `--scene`으로 지정해 다시 실행하세요. 이전 코드는 장면 변경 후 무효화된 휠 핸들에 접근해 예외로 종료될 수 있었습니다.
 
-속도 명령은 가속도를 제한하고 병진 속도 벡터를 1.5 m/s로 제한합니다. `--drive-seconds` 경과 후 속도 목표를 0으로 바꾸지만 물리적인 정지 거리가 0이라는 뜻은 아닙니다. 작은 바닥이므로 최고 속도·장시간 주행 전 바닥 크기를 확장해야 합니다. 현재 CLI 속도 명령은 ROS `/cmd_vel`과 연결되어 있지 않습니다.
+운영 ROS 모드의 메카넘 계산과 속도·가속도 제한은 C++ 제어 노드에서 수행합니다. 레거시 CLI 모드도 속도·가속도를 제한하고 `--drive-seconds` 경과 후 목표를 0으로 바꿉니다. 목표 0이 물리적인 정지 거리가 0이라는 뜻은 아닙니다. 작은 바닥이므로 최고 속도·장시간 주행 전 바닥 크기를 확장해야 합니다.
 
 ## ROS launch와의 관계
 
@@ -167,8 +203,10 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `scene.py` | 편집기 확장, Stage·지면·조명·물리 환경 구성 |
 | `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
 | `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
+| `ros_commands.py` | ROS 바퀴 명령 구독·이름 매핑·통신 watchdog. 메카넘 계산 없음 |
 | `feedback.py` | 물리 IMU 생성, 실제 조인트 상태·IMU ROS 발행 그래프 구성 |
-| `check_topics.py` | 별도 ROS 터미널에서 IMU·네 휠·두 LiDAR·센서 TF를 한 번에 검사 |
+| `check_topics.py` | 별도 ROS 터미널에서 IMU·네 휠·두 LiDAR·RGB-D·CameraInfo·센서 TF를 한 번에 검사 |
+| `camera.py` | 전방 USD Camera, RGB·깊이·카메라 정보·광학 프레임 TF 구성 |
 | `lidar.py` | 두 PhysX 라이다 생성, LaserScan·센서 TF 발행 그래프 구성 |
 | `test/run_lidar_fixture.py` | GPU/DDS 통합 검증용 이동 장애물 장면, 원본 USD 저장 안 함 |
 | `mecanum.py` | 시뮬레이터에 의존하지 않는 메카넘 역기구학·속도 제한 |
@@ -197,6 +235,7 @@ python3 ../ros2_ws/src/amr_description/test/check_model.py
 python3 test/check_mecanum.py
 python3 test/check_simulation.py
 python3 test/check_lidar.py
+python3 test/check_camera.py
 ```
 
 위 검사는 표준 라이브러리만 사용하며 링크 트리·질량·관성·롤러 축·바퀴 속도 여유·명령 속도 제한을 검증합니다. 원통 롤러는 단순화된 형상이라 접촉 진동과 슬립 튜닝이 필요합니다. 실제 주행 시 지면 마찰, 접촉 안정성, 롤러 형상, 모터 게인을 검증해야 합니다.

@@ -4,7 +4,9 @@
 
 Ubuntu 24.04 LTS 환경에서 소형 4륜 메카넘 AMR의 시뮬레이션, 로봇 제어, 지도 작성(SLAM), 위치 추정, 경로 계획 및 자율주행을 단계적으로 구현합니다. 최고 병진 속도는 1.5 m/s이며, 초기 모델은 센서 포함 예약 크기 0.48 × 0.44 × 0.34 m로 설계했습니다. 검증된 ROS 2 오픈소스를 활용하고, 이후 실제 로봇 하드웨어로 확장할 수 있도록 모듈형 아키텍처를 지향합니다.
 
-Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백 및 대각 LiDAR 두 개의 ROS 2 연동을 검증했습니다. RGB-D 카메라와 SLAM/Nav2 통합은 후속 단계입니다.
+Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백, 대각 LiDAR 두 개 및 전방 RGB-D 카메라의 ROS 2 연동을 검증했습니다. 오도메트리와 SLAM/Nav2 통합은 후속 단계입니다.
+
+ROS 2 C++ 키보드 주행은 [my_amr 실행 안내](ros2_ws/src/my_amr/README.md)를 따릅니다. 키보드가 `/cmd_vel`을 발행하고 C++ 노드가 네 휠 속도를 계산하며, Isaac Sim Bridge가 이를 조인트에 적용합니다. WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료를 지원합니다.
 
 > **프로젝트 상태:** 초기 설계 및 개발 환경 구성 단계. 아래 디렉터리와 실행 절차는 목표 구조이며, 구현 진행에 따라 업데이트합니다.
 >
@@ -44,6 +46,18 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 - GitHub 코드 및 테스트 관리, Notion 기술 문서 관리
 
 ## 시스템 구성
+
+개발 위치는 다음 기준으로 나눕니다.
+
+| 위치 | 담당 작업 |
+| --- | --- |
+| `isaac_sim/` | Isaac Sim 로봇·USD 생성/가져오기, 장면·물리 설정, LiDAR·카메라·IMU 생성과 센서 데이터 발행, ROS 명령을 조인트에 적용하는 Bridge 어댑터 |
+| `ros2_ws/src/` | ROS 2 C++ 제어 노드: `/cmd_vel` 처리, 메카넘 계산, 속도·가속도 제한, timeout, 주행 보정, 오도메트리·상태 추정·자율주행 |
+| `ros2_ws/src/amr_description/` | 양쪽이 공유하는 URDF/Xacro와 로봇·센서 제원 |
+
+**운영 제어 흐름:** `/cmd_vel` → `ros2_ws`의 제어 노드 → 바퀴별 속도 명령 → `isaac_sim`의 Bridge 어댑터 → 휠 조인트. 센서와 실제 조인트 피드백은 반대로 Isaac Sim에서 생성해 ROS로 전달합니다. 이 흐름은 제어 계층의 개발 기준이며, 각 기능의 현재 구현 상태는 아래 로드맵과 개별 README를 따릅니다.
+
+기존 `isaac_sim/mecanum.py`와 CLI 주행은 초기 시뮬레이터 검증용입니다. 앞으로 제어 알고리즘은 ROS 2 패키지에서 구현하며, 시뮬레이터에는 명령 적용·단위 변환·연결 검증에 필요한 코드만 둡니다. 실제 로봇으로 전환할 때는 상위 ROS 제어 코드를 유지하고 어댑터를 교체합니다.
 
 시스템은 다음과 같은 기능 단위로 구성합니다.
 
@@ -86,9 +100,9 @@ Isaac Sim과 ROS 2 Bridge의 상세 버전은 공식 호환성을 확인한 뒤 
 
 - [ ] **01. 환경 구성:** Ubuntu / ROS 2 Jazzy / Python venv / 빌드 도구 / Isaac Sim 호환성 검증
 - [ ] **02. 프로젝트 초기화:** GitHub, 패키지 구조, 개발 규칙 및 문서화 체계
-- [ ] **03. 로봇 모델:** 소형 메카넘·IMU·두 LiDAR 물리 실행 검증, RGB-D 카메라 연동 예정
-- [ ] **04. 시뮬레이터 연동:** IMU·휠·두 LaserScan 검증, 카메라·구동 명령 통합 예정
-- [ ] **05. 기본 제어:** `/cmd_vel`, 휠 제어, `/odom`, TF 검증
+- [ ] **03. 로봇 모델:** 소형 메카넘·IMU·두 LiDAR·RGB-D 카메라 실행 검증, 모델/센서 튜닝 진행
+- [ ] **04. 시뮬레이터 연동:** IMU·휠·두 LaserScan·RGB-D 및 C++ 바퀴 명령 연결
+- [ ] **05. 기본 제어:** 키보드·`/cmd_vel`·휠 속도 목표·timeout 구현, `/odom` 및 주행 보정 예정
 - [ ] **06. Mapping:** SLAM Toolbox로 맵 작성 및 저장
 - [ ] **07. Localization:** AMCL 기반 지도 내 위치 추정
 - [ ] **08. Navigation:** Nav2 경로 계획, 목적지 이동, 회피·복구 동작
