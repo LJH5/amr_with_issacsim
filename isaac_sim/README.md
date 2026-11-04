@@ -4,6 +4,12 @@
 
 이 폴더는 **시뮬레이터 구성과 연결**을 담당합니다. 로봇 생성·가져오기, LiDAR·카메라·IMU, 센서 발행, ROS에서 받은 바퀴 명령의 조인트 적용은 여기서 개발합니다. `/cmd_vel` 처리·메카넘 계산·속도 제한·주행 timeout·오도메트리 등 **AMR 제어 로직은 `../ros2_ws/src/`의 ROS 2 C++ 패키지**에서 개발합니다. 기존 `mecanum.py`와 CLI 주행은 초기 검증용이며 운영 제어의 기준 구현으로 확장하지 않습니다. 상세 규칙은 [AGENTS.md](../AGENTS.md)의 개발 위치와 책임 경계를 따릅니다.
 
+## Physics 편집 메뉴
+
+GUI 실행에서는 `scene.py`가 `omni.kit.property.physx`와 의존 확장 `omni.physx.ui`를 매번 활성화합니다. 재실행 후에도 **Create → Physics**와 Property의 **Add → Physics**에서 물리 요소를 편집할 수 있도록 합니다. `--headless`에서는 편집 확장을 추가로 켜지 않습니다. 확장 활성화는 실행 설정이며, USD 저장만으로 다음 실행의 메뉴 활성화가 보장되지는 않습니다.
+
+이미 열린 창에서는 **Window → Extensions**에서 `omni.kit.property.physx`를 검색하여 활성화하거나, 프로그램을 종료한 뒤 `bash run.sh --control ros`로 다시 실행하세요. Physics Material을 생성한 다음에는 실제 Collider의 Physics Material 항목에 연결하고 USD를 저장해야 접촉 마찰 설정이 유지됩니다.
+
 ## 소형 모델 제원
 
 ROS 주행은 `bash run.sh --control ros`를 사용합니다(Bridge 활성화·CLI 속도 미지정 시 기본 모드). 이 경로는 `/cmd_vel`을 직접 구독하거나 메카넘 계산을 하지 않습니다. `ros2_ws`의 C++ 제어 노드가 발행한 `/wheel_commands`의 네 휠 이름·각속도 [rad/s]를 받아 조인트에 적용합니다. [my_amr 실행 안내](../ros2_ws/src/my_amr/README.md)에 따라 C++ 제어와 키보드를 별도 터미널에서 실행하세요. 키는 WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료입니다.

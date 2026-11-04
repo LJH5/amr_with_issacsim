@@ -11,6 +11,10 @@ def create_stage(headless, scene_path=None, ros2=False):
     manager = omni.kit.app.get_app().get_extension_manager()
     if not headless:
         manager.set_extension_enabled_immediate('omni.graph.window.action', True)
+        # Also enables omni.physx.ui for Create > Physics and collider/material editing.
+        manager.set_extension_enabled_immediate('omni.kit.property.physx', True)
+        if not manager.is_extension_enabled('omni.kit.property.physx'):
+            raise RuntimeError('PhysX editor could not be enabled; check Isaac Sim extensions')
     manager.set_extension_enabled_immediate('isaacsim.asset.importer.urdf', True)
     if ros2:
         # Register saved IMU schemas/nodes before the USD scene is opened.
