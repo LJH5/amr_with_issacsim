@@ -19,6 +19,22 @@ ROS 2 Jazzy / ament_cmake / C++17 기반 AMR 제어 패키지입니다. 라이�
 
 운영 제어는 이 C++ 패키지에서 수행합니다. Isaac Sim에는 바퀴 명령 수신·이름 매핑·단위 변환·통신 watchdog만 둡니다. 기존 Python 기구학은 `--control cli`의 초기 검증용입니다.
 
+## C++ 서식
+
+함수·조건문·반복문 사이와 헤더 선언 사이에 빈 줄을 한 줄 둡니다.
+Doxygen 주석은 해당 선언에 붙여 두며, namespace 내부는 단계마다 2칸 들여씁니다.
+상세 예외는 프로젝트 `AGENTS.md`의 C++ 규칙을 따릅니다.
+
+ROS 환경을 source한 뒤 `my_amr` 패키지 경로에서 실행합니다.
+
+```bash
+ament_uncrustify -c config/uncrustify.cfg --reformat
+ament_cpplint
+```
+
+`colcon test`도 같은 포매터 설정을 사용합니다. `CPPLINT.cfg`는 namespace 들여쓰기를
+금지하는 검사 한 항목만 제외합니다. 나머지 검사는 유지합니다.
+
 ## 빌드와 실행
 
 통합 실행은 프로젝트 루트에서 다음과 같이 시작합니다.

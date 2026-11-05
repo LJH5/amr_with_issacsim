@@ -63,6 +63,8 @@ install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  set(ament_cmake_uncrustify_ADDITIONAL_ARGS
+    CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/config/uncrustify.cfg")
   ament_lint_auto_find_test_dependencies()
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_mecanum_drive test/test_mecanum_drive.cpp)

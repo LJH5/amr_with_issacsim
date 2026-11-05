@@ -21,28 +21,29 @@
 
 namespace
 {
-my_amr::DriveConfig config()
-{
-  return {0.075, 0.30, 0.36, 1.5, 1.2, 0.5, 1.0, 35.0, 0.25, {-1, 1, 1, -1}};
-}
+  my_amr::DriveConfig config()
+  {
+    return {0.075, 0.30, 0.36, 1.5, 1.2, 0.5, 1.0, 35.0, 0.25, {-1, 1, 1, -1}};
+  }
 
-TEST(MecanumDrive, ForwardStrafeAndYaw)
+  TEST(MecanumDrive, ForwardStrafeAndYaw)
 {
   for (const auto command : {std::array<double, 3>{0.03, 0, 0}, {0, 0.03, 0}, {0, 0, 0.05}}) {
-    my_amr::MecanumDrive drive(config());
-    drive.receive(command, 0);
-    const auto actual = drive.update(0.1, 0.1);
-    const std::array<double, 4> expected = command[0] != 0 ?
-      std::array<double, 4>{0.4, 0.4, 0.4, 0.4} : command[1] != 0 ?
-    std::array<double, 4>{-0.4, 0.4, 0.4, -0.4} :
-    std::array<double, 4>{-0.22, 0.22, -0.22, 0.22};
-    for (size_t i = 0; i < 4; ++i) {
-      EXPECT_NEAR(actual[i], expected[i], 1e-9);
-    }
-  }
-}
+      my_amr::MecanumDrive drive(config());
+      drive.receive(command, 0);
+      const auto actual = drive.update(0.1, 0.1);
+      const std::array<double, 4> expected = command[0] != 0 ?
+        std::array<double, 4>{0.4, 0.4, 0.4, 0.4} : command[1] != 0 ?
+      std::array<double, 4>{-0.4, 0.4, 0.4, -0.4} :
+      std::array<double, 4>{-0.22, 0.22, -0.22, 0.22};
 
-TEST(MecanumDrive, StopTimeoutInvalidAndRepeatedCommands)
+      for (size_t i = 0; i < 4; ++i) {
+        EXPECT_NEAR(actual[i], expected[i], 1e-9);
+      }
+  }
+  }
+
+  TEST(MecanumDrive, StopTimeoutInvalidAndRepeatedCommands)
 {
   my_amr::MecanumDrive drive(config());
   EXPECT_EQ(drive.update(0, 0.1), (std::array<double, 4>{}));
@@ -57,9 +58,9 @@ TEST(MecanumDrive, StopTimeoutInvalidAndRepeatedCommands)
   EXPECT_EQ(drive.update(0.61, 0.01), (std::array<double, 4>{}));
   drive.receive({std::numeric_limits<double>::quiet_NaN(), 0, 0}, 0.7);
   EXPECT_EQ(drive.update(0.71, 0.01), (std::array<double, 4>{}));
-}
+  }
 
-TEST(MecanumDrive, AccelerationAndWheelLimits)
+  TEST(MecanumDrive, AccelerationAndWheelLimits)
 {
   my_amr::MecanumDrive drive(config());
   drive.receive({1.5, 1.5, 0}, 0);
@@ -67,14 +68,17 @@ TEST(MecanumDrive, AccelerationAndWheelLimits)
   const double vx = (first[0] + first[1]) * 0.075 / 2;
   const double vy = (first[1] - first[0]) * 0.075 / 2;
   EXPECT_NEAR(std::hypot(vx, vy), 0.05, 1e-9);
+
   for (int i = 1; i < 100; ++i) {
-    drive.receive({100, 100, 100}, i * 0.1);
-    for (double wheel : drive.update(i * 0.1, 0.1)) {
-      EXPECT_LE(std::abs(wheel), 35.0);
-    }
+      drive.receive({100, 100, 100}, i * 0.1);
+
+      for (double wheel : drive.update(i * 0.1, 0.1)) {
+        EXPECT_LE(std::abs(wheel), 35.0);
+      }
   }
+
   auto invalid = config();
   invalid.radius = 0;
   EXPECT_THROW(my_amr::MecanumDrive{invalid}, std::invalid_argument);
-}
+  }
 }  // namespace

@@ -27,44 +27,51 @@
 
 namespace
 {
-volatile std::sig_atomic_t interrupted = 0;
-/**
- * @brief 시그널 핸들러에서 안전하게 키보드 루프의 종료를 요청한다.
- * @param signal_number 수신된 SIGINT 또는 SIGTERM 번호.
- */
-void stop_signal(int signal_number)
-{
-  (void)signal_number;
-  interrupted = 1;
-}
+  volatile std::sig_atomic_t interrupted = 0;
 
-/** @brief 터미널의 한 글자 입력 모드를 관리하고 종료 시 원래 설정을 복원한다. */
-class TerminalMode
-{
-public:
   /**
-   * @brief 표준 입력 터미널을 저장하고 Enter 없는 키 입력을 활성화한다.
-   * @throws std::runtime_error 대화형 터미널이 없거나 설정에 실패했을 때.
+   * @brief 시그널 핸들러에서 안전하게 키보드 루프의 종료를 요청한다.
+   * @param signal_number 수신된 SIGINT 또는 SIGTERM 번호.
    */
-  TerminalMode()
+  void stop_signal(int signal_number)
   {
-    if (!isatty(STDIN_FILENO) || tcgetattr(STDIN_FILENO, &saved_) != 0) {
-      throw std::runtime_error("Run keyboard_teleop in an interactive terminal");
-    }
-    auto mode = saved_;
-    mode.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
-    mode.c_cc[VMIN] = 0;
-    mode.c_cc[VTIME] = 0;
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &mode) != 0) {
-      throw std::runtime_error("Cannot configure terminal");
-    }
+    (void)signal_number;
+    interrupted = 1;
   }
-  /** @brief 정상 종료 또는 예외 처리 시 저장한 터미널 설정을 복원한다. */
-  ~TerminalMode() {tcsetattr(STDIN_FILENO, TCSANOW, &saved_);}
 
-private:
-  termios saved_{};
-};
+  /** @brief 터미널의 한 글자 입력 모드를 관리하고 종료 시 원래 설정을 복원한다. */
+  class TerminalMode
+  {
+  public:
+    /**
+     * @brief 표준 입력 터미널을 저장하고 Enter 없는 키 입력을 활성화한다.
+     * @throws std::runtime_error 대화형 터미널이 없거나 설정에 실패했을 때.
+     */
+    TerminalMode()
+    {
+      if (!isatty(STDIN_FILENO) || tcgetattr(STDIN_FILENO, &saved_) != 0) {
+        throw std::runtime_error("Run keyboard_teleop in an interactive terminal");
+      }
+
+      auto mode = saved_;
+      mode.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
+      mode.c_cc[VMIN] = 0;
+      mode.c_cc[VTIME] = 0;
+
+      if (tcsetattr(STDIN_FILENO, TCSANOW, &mode) != 0) {
+        throw std::runtime_error("Cannot configure terminal");
+      }
+    }
+
+    /** @brief 정상 종료 또는 예외 처리 시 저장한 터미널 설정을 복원한다. */
+    ~TerminalMode()
+    {
+      tcsetattr(STDIN_FILENO, TCSANOW, &saved_);
+    }
+
+  private:
+    termios saved_{};
+  };
 }  // namespace
 
 /**
@@ -90,26 +97,34 @@ int main(int argc, char ** argv)
     if (!std::isfinite(speed) || speed <= 0 || !std::isfinite(yaw_rate) || yaw_rate <= 0) {
       throw std::invalid_argument("speed_m_s and yaw_rate_rad_s must be positive and finite");
     }
+
     TerminalMode terminal;
     geometry_msgs::msg::Twist command;
     std::cout << "W/S: forward/backward, A/D: strafe, Q/E: rotate left/right, J: stop\n"
               << "Direction stays active until J or another key. Ctrl+C: exit\n"
               << "Speed: " << speed << " m/s, yaw: " << yaw_rate << " rad/s\n";
+
     while (rclcpp::ok() && !interrupted) {
       pollfd input{STDIN_FILENO, POLLIN, 0};
       const int ready = poll(&input, 1, 50);
+
       if (ready < 0 && !interrupted) {
         throw std::runtime_error("Keyboard poll failed");
       }
+
       if (input.revents & (POLLHUP | POLLERR | POLLNVAL)) {
         break;
       }
+
       if (input.revents & POLLIN) {
         char key;
+
         if (read(STDIN_FILENO, &key, 1) != 1) {
           break;
         }
+
         command = geometry_msgs::msg::Twist();
+
         switch (key) {
           case 'w': case 'W': command.linear.x = speed; break;
           case 's': case 'S': command.linear.x = -speed; break;
@@ -120,17 +135,20 @@ int main(int argc, char ** argv)
           default: break;  // J and unknown keys stop; J keeps the program running.
         }
       }
+
       publisher->publish(command);
     }
   } catch (const std::exception & error) {
     std::cerr << error.what() << '\n';
     result = 1;
   }
+
   // Keep ROS alive briefly so the explicit stop can leave the process.
   for (int i = 0; i < 3 && rclcpp::ok(); ++i) {
     publisher->publish(geometry_msgs::msg::Twist());
     usleep(20000);
   }
+
   rclcpp::shutdown();
   return result;
 }
