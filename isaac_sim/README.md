@@ -2,6 +2,12 @@
 
 이 폴더가 시뮬레이터 실행 진입점입니다. ROS용 원본 모델과 제원은 `../ros2_ws/src/amr_description/`에 두고, 여기서 불러와 지면·조명·물리 장면 및 바퀴 구동을 구성합니다. USD와 실행 스크립트를 ROS 패키지로 옮길 필요는 없습니다.
 
+ROS 노드와 함께 시작하려면 Jazzy 및 워크스페이스 환경을 source한 ROS 터미널에서
+`ros2 launch my_amr bringup.launch.py sim:=true`를 사용합니다.
+기존 run.sh를 호출하면서 주행 제어·오도메트리·로봇 TF를 함께 실행합니다.
+이미 시뮬레이터를 띄웠다면 `sim:=true`를 생략하고 ROS 노드만 시작합니다.
+키보드는 별도 터미널에서 실행하며 [통합 실행 옵션](../docs/odometry-integration.md#통합-실행)을 참고하세요.
+
 이 폴더는 **시뮬레이터 구성과 연결**을 담당합니다. 로봇 생성·가져오기, LiDAR·카메라·IMU, 센서 발행, ROS에서 받은 바퀴 명령의 조인트 적용은 여기서 개발합니다. `/cmd_vel` 처리·메카넘 계산·속도 제한·주행 timeout·오도메트리 등 **AMR 제어 로직은 `../ros2_ws/src/`의 ROS 2 C++ 패키지**에서 개발합니다. 기존 `mecanum.py`와 CLI 주행은 초기 검증용이며 운영 제어의 기준 구현으로 확장하지 않습니다. 상세 규칙은 [AGENTS.md](../AGENTS.md)의 개발 위치와 책임 경계를 따릅니다.
 
 ## Physics 편집 메뉴
@@ -32,6 +38,13 @@ ROS 실행에서는 `ground_truth.py`가 실제 `base_link`의 월드 위치·�
 이 값은 측정 전용이며 `/odom`이나 로봇 TF를 발행하지 않습니다.
 ROS C++ 자동 검증 실행과 결과 해석은 [주행 검증 기록](../docs/drive-validation.md)을 따릅니다.
 검증 중 다른 키보드·제어 노드를 함께 실행하지 마세요.
+
+실제 `/joint_states`에서 `/odom`을 계산하는 코드는 ROS C++ 패키지에 있습니다.
+`ros2 launch my_amr odometry.launch.py`를 별도 ROS 터미널에서 실행하면
+`odom → base_footprint → base_link`와 URDF 센서 프레임이 연결됩니다.
+Isaac Sim의 두 scan 프레임과 RGB-D 광학 프레임은 서로 다른 이름으로 유지하여
+TF 발행이 겹치지 않습니다. `/ground_truth/pose`는 오도메트리 입력으로 사용하지 않습니다.
+[오도메트리 연동 기록](../docs/odometry-integration.md)에 실행·검증 방법을 정리했습니다.
 
 ## 소형 모델 제원
 

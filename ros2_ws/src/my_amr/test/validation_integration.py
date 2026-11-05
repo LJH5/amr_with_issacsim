@@ -18,6 +18,7 @@ Exercise the real C++ validator with synthetic, synchronized ROS feedback.
 Use an isolated ROS_DOMAIN_ID with no simulator. This is a measurement-pipeline
 check, not a physics/friction test. Reports remain in a temporary directory.
 """
+import argparse
 import csv
 import json
 import math
@@ -38,7 +39,7 @@ NAMES = [name + '_wheel_joint' for name in
          ('front_left', 'front_right', 'rear_left', 'rear_right')]
 
 
-def run_case(root, mode):
+def run_case(root, mode, bringup=False):
     """Run six directions or interrupt feedback while the C++ test is moving."""
     node = rclpy.create_node('validation_fixture_' + mode)
     joints = node.create_publisher(JointState, '/joint_states', qos_profile_sensor_data)
@@ -60,7 +61,9 @@ def run_case(root, mode):
     prefix = root / mode
     log = (root / (mode + '.log')).open('w')
     process = subprocess.Popen(
-        ['ros2', 'launch', 'my_amr', 'validation.launch.py', 'repetitions:=' + str(repetitions),
+        ['ros2', 'launch', 'my_amr',
+         'bringup.launch.py' if bringup else 'validation.launch.py',
+         *(['validation:=true'] if bringup else []), 'repetitions:=' + str(repetitions),
          'drive_seconds:=' + ('0.4' if mode == 'complete' else '3.0'),
          'settle_seconds:=0.8', 'speed_m_s:=0.1', 'output_prefix:=' + str(prefix)],
         stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
@@ -211,14 +214,17 @@ def check_startup_wait(root):
 
 def main():
     """Run deterministic DDS checks and preserve logs for review."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--bringup', action='store_true', help='Exercise combined validation mode')
+    args = parser.parse_args()
     root = Path(tempfile.mkdtemp(prefix='amr-validation-dds-'))
     rclpy.init()
     try:
         check_startup_wait(root)
-        run_case(root, 'complete')
-        run_case(root, 'disconnect')
-        run_case(root, 'time_reset')
-        run_case(root, 'conflict')
+        run_case(root, 'complete', args.bringup)
+        run_case(root, 'disconnect', args.bringup)
+        run_case(root, 'time_reset', args.bringup)
+        run_case(root, 'conflict', args.bringup)
     finally:
         rclpy.shutdown()
         print('Reports:', root)

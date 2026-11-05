@@ -23,6 +23,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
 add_library(mecanum_drive src/mecanum_drive.cpp src/mecanum_odometry.cpp)
 target_compile_features(mecanum_drive PUBLIC cxx_std_17)
@@ -48,12 +50,16 @@ add_executable(drive_validation src/drive_validation_main.cpp src/drive_validati
 target_link_libraries(drive_validation mecanum_drive)
 ament_target_dependencies(drive_validation rclcpp geometry_msgs sensor_msgs)
 
-install(TARGETS my_amr_node keyboard_teleop drive_validation mecanum_drive
+add_executable(wheel_odometry src/odometry_main.cpp src/odometry_node.cpp)
+target_link_libraries(wheel_odometry mecanum_drive)
+ament_target_dependencies(wheel_odometry rclcpp sensor_msgs geometry_msgs nav_msgs tf2_ros)
+
+install(TARGETS my_amr_node keyboard_teleop drive_validation wheel_odometry mecanum_drive
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

@@ -27,4 +27,8 @@ colcon test-result --verbose
 
 표시에는 `ros-jazzy-joint-state-publisher-gui`와 RViz2가 필요합니다. 이 launch는 표시용 가상 joint state를 사용하므로 Isaac Sim과 동시에 실행하지 않습니다. 시뮬레이션에서는 실제 joint state와 TF 발행 책임을 정한 뒤 별도 launch로 연결합니다.
 
+Isaac Sim 실행 중 실제 관절 상태를 표시할 때는 `ros2 launch my_amr odometry.launch.py`를
+사용합니다. 이 launch가 실제 `/joint_states`를 사용하는 robot_state_publisher와
+휠 오도메트리를 실행합니다. [연동 안내](../../../docs/odometry-integration.md)를 참고하세요.
+
 센서 형상과 좌표계가 포함되어 있지만 URDF만으로 측정 데이터가 생성되지는 않습니다. Isaac Sim 실행 방법·제원·구현 범위는 [isaac_sim/README.md](../../../isaac_sim/README.md)를 참고하세요. `config/compact_amr.json`의 IMU·LiDAR·RGB-D 카메라 제원과 토픽은 Isaac Sim 연동 코드가 사용합니다. command timeout은 후속 연동을 위한 설계 목표입니다.

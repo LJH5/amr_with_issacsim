@@ -109,7 +109,10 @@ amr_control/
 - 표준 메시지 타입을 우선 사용한다. 예: `geometry_msgs/msg/Twist`, `nav_msgs/msg/Odometry`, `sensor_msgs/msg/LaserScan`.
 - 메시지·서비스·액션은 의미에 맞게 구분하고, 사용자 정의 인터페이스는 표준 타입으로 해결할 수 없을 때 추가한다.
 - 노드·토픽·프레임 이름은 패키지 간 일관되게 유지하고 launch/파라미터를 통한 리매핑을 지원한다.
-- 기본 TF 체인은 `map -> odom -> base_link -> sensor_frame`을 따른다.
+- 현재 URDF의 TF 체인은 `map -> odom -> base_footprint -> base_link -> sensor_frame`을 따른다.
+  `wheel_odometry`는 `odom -> base_footprint`, `robot_state_publisher`는 URDF 내부 TF를
+  발행한다. Isaac Sim은 고유한 LiDAR scan·RGB-D 광학 프레임을 발행한다.
+  `map -> odom`은 후속 SLAM/위치 추정이 담당한다.
 - 동일 TF에 대해 복수 노드가 중복 발행하지 않도록 책임을 명확히 한다.
 - 시뮬레이션과 실기체는 가능한 한 같은 상위 ROS 2 인터페이스를 사용한다.
 

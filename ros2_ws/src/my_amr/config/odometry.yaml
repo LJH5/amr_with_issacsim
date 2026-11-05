@@ -1,0 +1,14 @@
+# Initial tuning values, not calibrated sensor covariance.
+wheel_odometry:
+  ros__parameters:
+    joint_state_topic: /joint_states
+    odom_topic: /odom
+    odom_frame: odom
+    base_frame: base_footprint
+    max_sample_gap_s: 0.5
+    # Isaac Sim 5.1 wraps +2*pi -> -2*pi: period 4*pi, not 2*pi.
+    # Set 0.0 for an unwrapped hardware encoder.
+    position_wrap_period_rad: 12.566370614359172
+    # Order: x, y, z, roll, pitch, yaw; variance, not standard deviation.
+    pose_covariance_diagonal: [0.01, 0.01, 1000000.0, 1000000.0, 1000000.0, 0.04]
+    twist_covariance_diagonal: [0.01, 0.01, 1000000.0, 1000000.0, 1000000.0, 0.04]
