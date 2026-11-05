@@ -92,10 +92,11 @@ def build_robot(spec):
                  (wheels['roller_radius_m'], wheels['roller_length_m']),
                  '0.08 0.08 0.08 1')
             distance = radius - wheels['roller_radius_m']
-            # Tangent/helical axis in hub coordinates, tilted toward local Z.
+            # hand is the +vy coefficient in the controller's inverse kinematics.
+            # After Rx(-pi/2), the bottom roller must satisfy axis_y/axis_x=hand.
             angle = math.radians(wheels['roller_angle_deg'])
             axis = (-math.sin(theta) * math.cos(angle),
-                    math.cos(theta) * math.cos(angle), hand * math.sin(angle))
+                    math.cos(theta) * math.cos(angle), -hand * math.sin(angle))
             # Rz(yaw) Ry(pitch) maps the roller's +Z onto the helical axis.
             pitch = math.acos(axis[2])
             yaw = math.atan2(axis[1], axis[0])

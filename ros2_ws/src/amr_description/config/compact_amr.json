@@ -28,6 +28,20 @@
     "order": ["front_left", "front_right", "rear_left", "rear_right"],
     "roller_handedness": [-1, 1, 1, -1]
   },
+  "contact_materials": {
+    "rollers": {
+      "static_friction": 0.8,
+      "dynamic_friction": 0.6,
+      "restitution": 0.0,
+      "friction_combine_mode": "average"
+    },
+    "ground": {
+      "static_friction": 0.8,
+      "dynamic_friction": 0.6,
+      "restitution": 0.0,
+      "friction_combine_mode": "average"
+    }
+  },
   "motion_targets": {
     "max_planar_speed_m_s": 1.5,
     "initial_test_speed_m_s": 0.3,

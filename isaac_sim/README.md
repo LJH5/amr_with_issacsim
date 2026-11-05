@@ -10,6 +10,21 @@ GUI 실행에서는 `scene.py`가 `omni.kit.property.physx`와 의존 확장 `om
 
 이미 열린 창에서는 **Window → Extensions**에서 `omni.kit.property.physx`를 검색하여 활성화하거나, 프로그램을 종료한 뒤 `bash run.sh --control ros`로 다시 실행하세요. Physics Material을 생성한 다음에는 실제 Collider의 Physics Material 항목에 연결하고 USD를 저장해야 접촉 마찰 설정이 유지됩니다.
 
+## 휠·바닥 마찰과 회전 표시
+
+`../ros2_ws/src/amr_description/config/compact_amr.json`의 `contact_materials`를
+수정한 뒤 시뮬레이터를 재시작합니다. 현재 롤러와 바닥 각각 정지 마찰 **0.8**,
+운동 마찰 **0.6**, 반발 **0**, 결합 방식 **average**를 사용합니다.
+우레탄·에폭시 접촉을 위한 시뮬레이션 초기값이며 실측 물성값은 아닙니다.
+`materials.py`가 32개 롤러의 Collider와 `/World/Ground`의 Collider에 서로 다른
+Physics Material을 연결합니다. 새 장면과 저장 장면 모두 실행 시 JSON 값을 적용하므로
+GUI에서만 바꾼 마찰값은 다음 실행에서 JSON 값으로 덮어씁니다.
+
+`robot.py`는 저장된 USD의 롤러 축도 공통 URDF와 맞춥니다. 롤러는 자유 회전을
+유지하며, 네 휠 허브 바깥쪽의 주황색 표시가 실제 휠과 함께 회전합니다.
+Q/E에서는 좌우 휠이 서로 반대로 돌아야 합니다. 물리 조인트 적용과 자료형,
+검증 결과는 [AMR 모델 수정 기록](../docs/amr-model-fix.md)을 참고하세요.
+
 ## 차체 참값과 자동 주행 검증
 
 ROS 실행에서는 `ground_truth.py`가 실제 `base_link`의 월드 위치·자세를
@@ -215,7 +230,8 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `run_amr.py` | 제원 로딩·URDF 재생성, SimulationApp 시작·종료 |
 | `cli.py` | 실행 인자 파싱·검증 |
 | `scene.py` | 편집기 확장, Stage·지면·조명·물리 환경 구성 |
-| `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
+| `robot.py` | URDF 가져오기, 저장 장면의 롤러 축 정합, 휠 회전 표시 |
+| `materials.py` | JSON의 롤러·바닥 마찰값을 실제 Collider에 연결 |
 | `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
 | `ros_commands.py` | ROS 바퀴 명령 구독·이름 매핑·통신 watchdog. 메카넘 계산 없음 |
 | `feedback.py` | 물리 IMU 생성, 실제 조인트 상태·IMU ROS 발행 그래프 구성 |
@@ -223,6 +239,7 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `camera.py` | 전방 USD Camera, RGB·깊이·카메라 정보·광학 프레임 TF 구성 |
 | `lidar.py` | 두 PhysX 라이다 생성, LaserScan·센서 TF 발행 그래프 구성 |
 | `test/run_lidar_fixture.py` | GPU/DDS 통합 검증용 이동 장애물 장면, 원본 USD 저장 안 함 |
+| `test/run_model_fix_fixture.py` | SDK에서 실제 롤러 축·마찰 연결·회전 표시·중복 적용 검사 |
 | `mecanum.py` | 시뮬레이터에 의존하지 않는 메카넘 역기구학·속도 제한 |
 | `simulation.py` | 장면 조립·저장, 재생 루프와 종료 시 정지 처리 |
 

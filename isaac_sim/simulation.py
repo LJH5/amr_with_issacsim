@@ -7,7 +7,8 @@ from camera import configure_camera
 from feedback import configure_feedback
 from ground_truth import configure_ground_truth
 from lidar import configure_lidars
-from robot import import_robot
+from robot import configure_roller_axes, configure_wheel_markers, import_robot
+from materials import configure_contact_materials
 from ros_commands import GraphWheelSubscriber
 from scene import add_environment, create_stage
 
@@ -23,6 +24,9 @@ def run(app, args, spec, sim_dir, description):
         build.mkdir(exist_ok=True)
         import_robot(stage, description / "urdf/compact_amr.urdf", build)
         add_environment(stage)
+    configure_roller_axes(stage, description / 'urdf/compact_amr.urdf')
+    configure_wheel_markers(stage, spec)
+    configure_contact_materials(stage, spec)
     drives = configure_drives(stage, spec)
     command_source = None
     if args.ros2:

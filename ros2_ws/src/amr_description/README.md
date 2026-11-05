@@ -7,6 +7,12 @@
 - 재생성: `python3 scripts/generate_robot.py` (이 패키지 경로에서 실행)
 - 검사: `python3 test/check_model.py`
 
+`config/compact_amr.json`의 `contact_materials`는 Isaac Sim용 롤러·바닥 접촉 설정입니다.
+각각 정지 마찰 0.8, 운동 마찰 0.6, 반발 0, 결합 방식 average를 초기값으로 사용합니다.
+시뮬레이터 시작 시 실제 Collider에 적용하며 ROS 제어 수식과는 분리합니다.
+롤러 handedness는 +Y 속도의 기구학 계수이며 URDF의 실제 접촉 축과 일치해야 합니다.
+수정 배경과 실행 검증은 [AMR 모델 수정 기록](../../../docs/amr-model-fix.md)을 참고하세요.
+
 프로젝트 루트에서 Jazzy 환경을 로드한 뒤 실행합니다.
 
 ```bash
