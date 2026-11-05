@@ -76,6 +76,24 @@ ros2 run my_amr keyboard_teleop --ros-args \
 
 `/odom`, 폐루프 보정, 장애물 기반 자동 정지, Nav2, ros2_control 하드웨어 인터페이스는 후속 작업입니다. 현재 설치 환경에는 mecanum_drive_controller와 topic 기반 하드웨어 연결이 준비되어 있지 않아 기존 검증한 기구학을 C++ 계산기로 이식했습니다.
 
+## 자동 주행·마찰 검증
+
+Isaac Sim을 실행한 뒤 별도 터미널에서 다음 launch를 실행합니다.
+기존 키보드와 제어 노드는 종료하세요. 이 launch가 제어 노드를 함께 시작하며
+로봇을 전후·좌우·제자리 회전으로 자동 구동합니다.
+
+```bash
+ros2 launch my_amr validation.launch.py \
+  repetitions:=1 drive_seconds:=1.0 speed_m_s:=0.1 \
+  output_prefix:=log/drive_validation/short
+```
+
+기본값은 6방향 × 3회, 방향별 5초 주행·2초 정지입니다. 실제 관절과
+`/ground_truth/pose`의 동일 시각 데이터를 비교하고 CSV·상태 파일을 남깁니다.
+통신 단절·시간 리셋·중복 제어·이동 한계 초과·정지 조건 미충족 시 중단합니다.
+현재 장면은 실제 저속 전진 후 정지 조건이 충족되지 않았으며 물리 접촉 튜닝이 남아 있습니다.
+실행 인자·CSV 열·검증 결과는 [주행 검증 기록](../../../docs/drive-validation.md)을 참고하세요.
+
 ## 검사와 주석
 
 ```bash

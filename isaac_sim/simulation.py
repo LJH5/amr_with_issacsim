@@ -5,6 +5,7 @@
 from drive import apply_command, apply_wheel_velocities, configure_drives, ramp_command
 from camera import configure_camera
 from feedback import configure_feedback
+from ground_truth import configure_ground_truth
 from lidar import configure_lidars
 from robot import import_robot
 from ros_commands import GraphWheelSubscriber
@@ -26,6 +27,7 @@ def run(app, args, spec, sim_dir, description):
     command_source = None
     if args.ros2:
         configure_feedback(stage, spec)
+        configure_ground_truth(stage, spec)
         configure_lidars(stage, spec)
         configure_camera(stage, spec)
         if args.control == 'ros':

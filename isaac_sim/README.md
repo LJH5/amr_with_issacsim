@@ -10,6 +10,14 @@ GUI 실행에서는 `scene.py`가 `omni.kit.property.physx`와 의존 확장 `om
 
 이미 열린 창에서는 **Window → Extensions**에서 `omni.kit.property.physx`를 검색하여 활성화하거나, 프로그램을 종료한 뒤 `bash run.sh --control ros`로 다시 실행하세요. Physics Material을 생성한 다음에는 실제 Collider의 Physics Material 항목에 연결하고 USD를 저장해야 접촉 마찰 설정이 유지됩니다.
 
+## 차체 참값과 자동 주행 검증
+
+ROS 실행에서는 `ground_truth.py`가 실제 `base_link`의 월드 위치·자세를
+`/ground_truth/pose` (`geometry_msgs/PoseStamped`, `frame_id=world`)로 발행합니다.
+이 값은 측정 전용이며 `/odom`이나 로봇 TF를 발행하지 않습니다.
+ROS C++ 자동 검증 실행과 결과 해석은 [주행 검증 기록](../docs/drive-validation.md)을 따릅니다.
+검증 중 다른 키보드·제어 노드를 함께 실행하지 마세요.
+
 ## 소형 모델 제원
 
 ROS 주행은 `bash run.sh --control ros`를 사용합니다(Bridge 활성화·CLI 속도 미지정 시 기본 모드). 이 경로는 `/cmd_vel`을 직접 구독하거나 메카넘 계산을 하지 않습니다. `ros2_ws`의 C++ 제어 노드가 발행한 `/wheel_commands`의 네 휠 이름·각속도 [rad/s]를 받아 조인트에 적용합니다. [my_amr 실행 안내](../ros2_ws/src/my_amr/README.md)에 따라 C++ 제어와 키보드를 별도 터미널에서 실행하세요. 키는 WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료입니다.

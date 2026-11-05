@@ -24,7 +24,7 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
-add_library(mecanum_drive src/mecanum_drive.cpp)
+add_library(mecanum_drive src/mecanum_drive.cpp src/mecanum_odometry.cpp)
 target_compile_features(mecanum_drive PUBLIC cxx_std_17)
 target_include_directories(mecanum_drive PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,7 +44,11 @@ add_executable(keyboard_teleop src/keyboard_teleop.cpp)
 target_compile_features(keyboard_teleop PRIVATE cxx_std_17)
 ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs)
 
-install(TARGETS my_amr_node keyboard_teleop mecanum_drive
+add_executable(drive_validation src/drive_validation_main.cpp src/drive_validation.cpp)
+target_link_libraries(drive_validation mecanum_drive)
+ament_target_dependencies(drive_validation rclcpp geometry_msgs sensor_msgs)
+
+install(TARGETS my_amr_node keyboard_teleop drive_validation mecanum_drive
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
@@ -57,6 +61,8 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_mecanum_drive test/test_mecanum_drive.cpp)
   target_link_libraries(test_mecanum_drive mecanum_drive)
+  ament_add_gtest(test_mecanum_odometry test/test_mecanum_odometry.cpp)
+  target_link_libraries(test_mecanum_odometry mecanum_drive)
 endif()
 
 ament_package()
