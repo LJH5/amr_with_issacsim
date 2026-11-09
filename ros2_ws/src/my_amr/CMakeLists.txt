@@ -63,7 +63,18 @@ install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  # clang-format replaces the conflicting ROS Uncrustify style check.
+  list(APPEND AMENT_LINT_AUTO_EXCLUDE ament_cmake_uncrustify)
   ament_lint_auto_find_test_dependencies()
+  find_program(CLANG_FORMAT NAMES clang-format-18 clang-format REQUIRED)
+  file(GLOB_RECURSE cpp_style_files CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp")
+  ament_add_test(google_cpp_format
+    COMMAND "${CLANG_FORMAT}" --dry-run --Werror --style=file ${cpp_style_files}
+    GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_mecanum_drive test/test_mecanum_drive.cpp)
   target_link_libraries(test_mecanum_drive mecanum_drive)

@@ -95,7 +95,31 @@ amr_control/
 - 클래스는 역할이 명확해야 하며, **한 클래스가 통신·제어·경로 계획·UI를 모두 담당하지 않도록** 한다.
 - 재사용 가능한 클래스는 `include/<package_name>/*.hpp`에 선언하고 `src/*.cpp`에 구현한다.
 - 실행 파일의 `main()`은 노드 초기화 및 실행 위주로 최소화한다.
-- 파일명·함수명·변수명은 `snake_case`, 클래스명은 `PascalCase`, 상수는 `kPascalCase`를 기본으로 한다. 외부 라이브러리의 기존 규칙과 통합할 때는 해당 코드베이스의 규칙을 존중한다.
+- C++ 스타일의 기준은 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)다. 이전에 정한 중괄호 줄바꿈·namespace 들여쓰기 규칙보다 이 기준을 우선한다. 아래에 명시한 ROS 2 프로젝트 예외를 제외하고 새 코드와 수정 코드에 적용한다.
+- 서식의 기준 파일은 저장소 루트 `.clang-format`이며 `BasedOnStyle: Google`을 사용한다. Ubuntu 24.04의 clang-format 18을 기준으로 자동 정렬한다. 탭 대신 공백 2칸, 기본 줄 길이 80자, namespace 내부 추가 들여쓰기 없음, 접근 지정자 1칸 들여쓰기를 따른다.
+- 함수·클래스·namespace·`if`·`for` 등의 여는 중괄호는 선언 또는 조건식과 같은 줄에 배치한다. `} else {`와 `} else if (...) {`도 같은 줄에 연결한다. 긴 조건식은 포매터의 줄바꿈을 따른다.
+
+  ```cpp
+  namespace my_amr {
+
+  void ProcessItems() {
+    if (condition) {
+      Execute();
+    }
+
+    for (const auto& item : items) {
+      Process(item);
+    }
+  }
+
+  }  // namespace my_amr
+  ```
+
+- 클래스·구조체 이름과 일반 함수·메서드 이름은 `PascalCase`, 변수·파라미터·namespace·파일 이름은 `snake_case`, 클래스 멤버는 `snake_case_`, 상수는 `kPascalCase`를 사용한다. 접근자·설정자는 `finished()`·`set_count()`처럼 `snake_case`를 사용할 수 있다. `main`과 ROS·표준 라이브러리 API 이름 및 외부 인터페이스 이름은 원래 이름을 유지한다.
+- 헤더는 단독으로 include해도 컴파일할 수 있게 필요한 헤더를 직접 포함한다. 관련 헤더, C 시스템 헤더, C++ 표준 헤더, 외부·프로젝트 헤더를 구분해 정렬하며 include guard를 사용한다. namespace 전체를 가져오는 `using namespace`는 사용하지 않는다.
+- 함수 정의와 서로 다른 논리 블록은 필요한 빈 줄 한 줄로 구분한다. Doxygen 주석은 선언에 붙이고, 함수별 주석·선언 그룹 사이에는 빈 줄을 둔다. 연속 빈 줄이나 모든 문장 앞의 기계적인 빈 줄은 추가하지 않는다.
+- Google 가이드 전체와 자동 서식 검사는 구분한다. clang-format은 배치·공백을 검사하고, 이름·소유권·수명·오류 처리·스레드 안전성은 코드 리뷰에서 확인한다. cpplint의 중괄호 검사 제외 설정은 제거하며 기본 검사를 유지한다. ROS 기본 서식과 충돌하는 Uncrustify 검사는 Google clang-format 검사로 대체한다.
+- **ROS 2 프로젝트 예외:** Jazzy와 기존 빌드의 호환성을 위해 C++17 및 `.cpp`/`.hpp` 확장자를 유지한다. 기존 설정 검증과 ROS API가 사용하는 C++ 예외·시작 시 오류 처리 및 한국어 Doxygen 문서를 허용한다. 기존 include guard의 경로 구분용 이중 밑줄은 ament_cpplint와의 호환성을 위해 유지한다. 스타일 전환을 위해 예외를 제거하거나 언어 표준·ROS 토픽·파라미터·실행 파일 이름을 변경하지 않는다. 추가 예외가 필요하면 이유를 이 문서에 기록한다.
 - 매직 넘버를 피하고 상수 또는 ROS 2 파라미터로 명확하게 선언한다.
 - 소유권은 스마트 포인터/RAII로 관리하고 불필요한 전역 변수·수동 메모리 관리를 피한다.
 - 예외·오류·통신 실패·타임아웃을 고려하며, 로그는 `RCLCPP_*` 매크로를 사용한다.

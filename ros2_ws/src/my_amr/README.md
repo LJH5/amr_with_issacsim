@@ -165,3 +165,22 @@ ROS_DOMAIN_ID=42 python3 src/my_amr/test/keyboard_integration.py --sim
 검증 기록과 네트워크 제한 환경의 XML 스키마 검사 방법은 [키보드 제어 기록](../../../docs/keyboard-control.md)에 정리합니다.
 
 C++ 클래스·함수는 Doxygen 형식으로 문서화합니다. 헤더에는 @brief·@param·@return·@details·@throws와 단위·좌표계·배열 순서·timeout 의미를 적고, 헤더가 없는 함수는 정의부에 작성합니다.
+
+C++ 스타일은 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)를 기준으로 합니다. 저장소 루트 `.clang-format`의 `BasedOnStyle: Google`에 따라 공백 2칸, 기본 80자, 같은 줄의 여는 중괄호, namespace 내부 추가 들여쓰기 없음으로 정렬합니다. 일반 함수·메서드는 `Receive()`·`Update()`·`ForwardKinematics()`와 같이 PascalCase를 사용하며 접근자 `finished()`·`failed()`는 유지합니다. C++ 메서드 이름을 참조하는 외부 코드는 변경된 이름으로 갱신해야 합니다.
+
+ROS 2 호환성을 위한 C++17, `.cpp`/`.hpp`, 기존 예외 처리·ament include guard·한국어 Doxygen 문서는 프로젝트 예외입니다. 자세한 규칙은 루트 `AGENTS.md`를 따릅니다. 자동 서식이 Google 가이드의 모든 설계·명명 규칙을 검증하는 것은 아닙니다.
+
+```bash
+# Ubuntu 24.04: 개발 도구 설치 (requirements-apt.txt에도 포함)
+sudo apt install clang-format
+
+# 저장소 루트: 모든 C++ 소스·헤더 정렬
+find ros2_ws/src -type f \( -name '*.cpp' -o -name '*.hpp' \) \
+  -exec clang-format-18 -i {} +
+
+# ros2_ws/: colcon 검사에 Google 서식 검사가 포함됩니다.
+colcon test --packages-select my_amr
+colcon test-result --verbose
+```
+
+서식 검사는 `clang-format-18` 또는 `clang-format`을 찾습니다. 별도 설치 경로는 CMake 인자 `-DCLANG_FORMAT=/path/to/clang-format-18`로 지정할 수 있습니다. ROS 기본 Uncrustify 검사는 Google 서식 검사로 대체하며 cpplint의 중괄호 검사는 유지합니다.

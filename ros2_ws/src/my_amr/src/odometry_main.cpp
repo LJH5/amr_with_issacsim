@@ -12,22 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "my_amr/odometry_node.hpp"
-
 #include <exception>
 #include <memory>
+
+#include "my_amr/odometry_node.hpp"
 
 /** @brief ROS 오도메트리 노드를 실행하고 시작 설정 오류를 기록한다.
  * @param argc ROS 명령행 인자 수.
  * @param argv ROS 명령행 인자 배열.
  * @return 정상 종료 0, 시작 또는 실행 오류 1.
  */
-int main(int argc, char ** argv)
-{
+int main(int argc, char** argv) {
   rclcpp::init(argc, argv);
   try {
     rclcpp::spin(std::make_shared<my_amr::OdometryNode>());
-  } catch (const std::exception & error) {
+  } catch (const std::exception& error) {
     RCLCPP_ERROR(rclcpp::get_logger("wheel_odometry"), "%s", error.what());
     rclcpp::shutdown();
     return 1;

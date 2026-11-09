@@ -17,23 +17,23 @@
 
 #include "my_amr/drive_validation.hpp"
 
-namespace
-{
+namespace {
 volatile std::sig_atomic_t interrupted = 0;
-/** @brief 신호 핸들러에서 종료 요청만 저장한다. @param signal POSIX 종료 신호. */
-void stop_signal(int signal) {interrupted = signal;}
-}
+/** @brief 신호 핸들러에서 종료 요청만 저장한다. @param signal POSIX 종료 신호.
+ */
+void StopSignal(int signal) { interrupted = signal; }
+}  // namespace
 
 /** @brief 자동 주행 검증을 실행하고 처리 가능한 종료 시 0 명령을 보낸다.
  * @param argc 인자 수.
  * @param argv ROS 인자 배열.
  * @return 유효한 측정 완료 0, 설정 오류·중단·측정 무효 1.
  */
-int main(int argc, char ** argv)
-{
-  rclcpp::init(argc, argv, rclcpp::InitOptions(), rclcpp::SignalHandlerOptions::None);
-  std::signal(SIGINT, stop_signal);
-  std::signal(SIGTERM, stop_signal);
+int main(int argc, char** argv) {
+  rclcpp::init(argc, argv, rclcpp::InitOptions(),
+               rclcpp::SignalHandlerOptions::None);
+  std::signal(SIGINT, StopSignal);
+  std::signal(SIGTERM, StopSignal);
   int result = 1;
   try {
     auto node = std::make_shared<my_amr::DriveValidation>();
@@ -42,11 +42,11 @@ int main(int argc, char ** argv)
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
     for (int i = 0; i < 3 && rclcpp::ok(); ++i) {
-      node->stop("interrupted");
+      node->Stop("interrupted");
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     result = node->failed() ? 1 : 0;
-  } catch (const std::exception & e) {
+  } catch (const std::exception& e) {
     RCLCPP_ERROR(rclcpp::get_logger("drive_validation"), "%s", e.what());
   }
   rclcpp::shutdown();
