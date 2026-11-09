@@ -34,11 +34,13 @@ def generate_launch_description():
                 'track_m': wheels['track_m'], 'roller_handedness': wheels['roller_handedness'],
                 'joint_velocity_limit_rad_s': wheels['joint_velocity_limit_rad_s'],
                 'wheel_joint_names': [name + '_wheel_joint' for name in wheels['order']],
+                'odom_topic': LaunchConfiguration('odom_topic'),
                 'use_sim_time': simulation,
                 'publish_tf': ParameterValue(LaunchConfiguration('publish_tf'), value_type=bool)}
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('publish_tf', default_value='true'),
+        DeclareLaunchArgument('odom_topic', default_value='/odom'),
         DeclareLaunchArgument('params_file', default_value=str(package / 'config/odometry.yaml')),
         Node(package='my_amr', executable='wheel_odometry', output='screen',
              parameters=[LaunchConfiguration('params_file'), geometry]),

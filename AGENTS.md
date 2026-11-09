@@ -137,6 +137,10 @@ amr_control/
   `wheel_odometry`는 `odom -> base_footprint`, `robot_state_publisher`는 URDF 내부 TF를
   발행한다. Isaac Sim은 고유한 LiDAR scan·RGB-D 광학 프레임을 발행한다.
   `map -> odom`은 후속 SLAM/위치 추정이 담당한다.
+- `localization:=true` 또는 `straight:=true`에서는 휠 오도메트리를 `/odometry/wheel`로 분리하고
+  `robot_localization` EKF만 `/odom`과 `odom -> base_footprint`를 발행한다. 원본 휠 TF는 끄며
+  동일 엔코더에서 얻은 위치·속도를 중복 융합하지 않는다. IMU 공분산·제어 이득의 초기값을
+  교정된 값으로 보고하지 않는다. 직선 시험은 명시적 시작과 원본 센서 단절 시 정지를 요구한다.
 - 동일 TF에 대해 복수 노드가 중복 발행하지 않도록 책임을 명확히 한다.
 - 시뮬레이션과 실기체는 가능한 한 같은 상위 ROS 2 인터페이스를 사용한다.
 

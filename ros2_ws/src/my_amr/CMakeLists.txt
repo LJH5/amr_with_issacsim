@@ -25,6 +25,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(std_srvs REQUIRED)
 
 add_library(mecanum_drive src/mecanum_drive.cpp src/mecanum_odometry.cpp)
 target_compile_features(mecanum_drive PUBLIC cxx_std_17)
@@ -54,7 +55,18 @@ add_executable(wheel_odometry src/odometry_main.cpp src/odometry_node.cpp)
 target_link_libraries(wheel_odometry mecanum_drive)
 ament_target_dependencies(wheel_odometry rclcpp sensor_msgs geometry_msgs nav_msgs tf2_ros)
 
+add_library(straight_controller src/straight_controller.cpp)
+target_link_libraries(straight_controller PUBLIC mecanum_drive)
+add_executable(straight_drive src/straight_drive_main.cpp src/straight_drive_node.cpp)
+target_link_libraries(straight_drive straight_controller)
+ament_target_dependencies(straight_drive rclcpp nav_msgs sensor_msgs geometry_msgs std_srvs)
+add_executable(imu_covariance src/imu_covariance_main.cpp src/imu_covariance_node.cpp)
+target_compile_features(imu_covariance PRIVATE cxx_std_17)
+target_include_directories(imu_covariance PRIVATE include)
+ament_target_dependencies(imu_covariance rclcpp sensor_msgs)
+
 install(TARGETS my_amr_node keyboard_teleop drive_validation wheel_odometry mecanum_drive
+  straight_drive straight_controller imu_covariance
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
@@ -80,6 +92,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_mecanum_drive mecanum_drive)
   ament_add_gtest(test_mecanum_odometry test/test_mecanum_odometry.cpp)
   target_link_libraries(test_mecanum_odometry mecanum_drive)
+  ament_add_gtest(test_straight_controller test/test_straight_controller.cpp)
+  target_link_libraries(test_straight_controller straight_controller)
 endif()
 
 ament_package()

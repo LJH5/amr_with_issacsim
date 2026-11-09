@@ -1,0 +1,19 @@
+straight_drive:
+  ros__parameters:
+    odom_topic: /odom
+    wheel_odom_topic: /odometry/wheel
+    imu_topic: /imu/filtered_input
+    cmd_vel_topic: /cmd_vel
+    distance_m: 1.0
+    speed_m_s: 0.1
+    lateral_gain_s_inv: 0.5
+    heading_gain_s_inv: 1.0
+    distance_gain_s_inv: 0.5
+    max_lateral_speed_m_s: 0.1
+    max_yaw_rate_rad_s: 0.3
+    position_tolerance_m: 0.01
+    yaw_tolerance_rad: 0.03
+    feedback_timeout_s: 0.3
+    max_duration_s: 60.0
+    max_lateral_error_m: 0.5
+    max_heading_error_rad: 0.7

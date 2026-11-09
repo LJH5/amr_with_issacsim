@@ -1,0 +1,35 @@
+# Initial simulation weights; calibrate with repeated physical measurements.
+ekf_filter:
+  ros__parameters:
+    frequency: 50.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+    # Order: x,y,z,roll,pitch,yaw,vx,vy,vz,vroll,vpitch,vyaw,ax,ay,az.
+    # Fuse encoder body vx/vy only. Do not duplicate encoder pose/yaw.
+    odom0: /odometry/wheel
+    odom0_config: [false, false, false, false, false, false,
+                   true, true, false, false, false, false, false, false, false]
+    odom0_queue_size: 20
+    odom0_differential: false
+    # Isaac Sim IMU uses ENU; relative yaw aligns startup with the local odom frame.
+    imu0: /imu/filtered_input
+    imu0_config: [false, false, false, false, false, true,
+                  false, false, false, false, false, true, false, false, false]
+    imu0_queue_size: 20
+    imu0_differential: false
+    imu0_relative: true
+    imu0_remove_gravitational_acceleration: false
+    # 3.8.3 does not implement this automatic reset path. After a clock rewind,
+    # stop the trial and explicitly call /ekf_filter/reset before starting again.
+
+imu_covariance:
+  ros__parameters:
+    input_topic: /imu/data
+    output_topic: /imu/filtered_input
+    orientation_variance_rad2: 0.01
+    angular_velocity_variance_rad2_s2: 0.0025

@@ -19,11 +19,13 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, EmitEvent, ExecuteProcess,
                             IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler)
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def start_simulator(context):
@@ -43,10 +45,35 @@ def start_simulator(context):
     ]
 
 
+def start_control(context):
+    """Choose one drive controller and one odom TF owner; require explicit motion start."""
+    package = Path(get_package_share_directory('my_amr'))
+    launch = package / 'launch'
+    straight = IfCondition(LaunchConfiguration('straight')).evaluate(context)
+    validation = IfCondition(LaunchConfiguration('validation')).evaluate(context)
+    fusion = straight or IfCondition(LaunchConfiguration('localization')).evaluate(context)
+    if straight and validation:
+        raise RuntimeError('straight and validation cannot both publish cmd_vel')
+    common = {'use_sim_time': LaunchConfiguration('use_sim_time'),
+              'publish_tf': LaunchConfiguration('publish_tf')}
+    actions = [
+        IncludeLaunchDescription(PythonLaunchDescriptionSource(str(
+            launch / ('validation.launch.py' if validation else 'drive.launch.py')))),
+        IncludeLaunchDescription(PythonLaunchDescriptionSource(str(
+            launch / ('localization.launch.py' if fusion else 'odometry.launch.py'))),
+            launch_arguments=common.items()),
+    ]
+    if straight:
+        actions.append(Node(package='my_amr', executable='straight_drive', output='screen',
+                            parameters=[LaunchConfiguration('straight_params'), {
+                                'use_sim_time': ParameterValue(
+                                    LaunchConfiguration('use_sim_time'), value_type=bool)}]))
+    return actions
+
+
 def generate_launch_description():
     """Select one controller owner and include the existing odometry launch."""
     package = Path(get_package_share_directory('my_amr'))
-    launch = package / 'launch'
     # Find the sibling SDK folder in isolated/merged colcon installs. Copied
     # installations can supply sim_script explicitly; no build-time path is baked in.
     script = next((parent / 'isaac_sim/run.sh' for parent in package.parents
@@ -62,18 +89,13 @@ def generate_launch_description():
                               description='Path to isaac_sim/run.sh for sim:=true'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('publish_tf', default_value='true'),
+        DeclareLaunchArgument('localization', default_value='false',
+                              description='Fuse wheel velocities and IMU using an EKF'),
+        DeclareLaunchArgument('straight', default_value='false',
+                              description='Enable EKF and idle straight-drive services'),
+        DeclareLaunchArgument('straight_params',
+                              default_value=str(package / 'config/straight_drive.yaml')),
         OpaqueFunction(function=start_simulator,
                        condition=IfCondition(LaunchConfiguration('sim'))),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch / 'drive.launch.py')),
-            condition=UnlessCondition(LaunchConfiguration('validation'))),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch / 'odometry.launch.py')),
-            launch_arguments={
-                'use_sim_time': LaunchConfiguration('use_sim_time'),
-                'publish_tf': LaunchConfiguration('publish_tf'),
-            }.items()),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(str(launch / 'validation.launch.py')),
-            condition=IfCondition(LaunchConfiguration('validation'))),
+        OpaqueFunction(function=start_control),
     ])
