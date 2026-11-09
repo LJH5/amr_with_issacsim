@@ -119,7 +119,7 @@ RViz에서 Image 표시를 추가하고 `/camera/color/image_raw`를 선택합�
 | `/scan/rear` | `sensor_msgs/msg/LaserScan` | `lidar_rear_right_scan` |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | `base_link` → 두 `*_scan` 프레임 |
 
-각 스캔은 270°, 해상도 0.5°(540개 빔), 거리 0.05–20 m, 목표 20 Hz입니다. 설정은 `../ros2_ws/src/amr_description/config/compact_amr.json`의 두 `lidar_*` 항목에서 변경합니다. 토픽의 timestamp는 시뮬레이션 시간이며, 실제 초당 발행 수는 앱 실행 속도에 따라 달라집니다.
+각 스캔은 270°, 해상도 1°(270개 빔), 거리 0.05–20 m, 목표 20 Hz입니다. 설정은 `../ros2_ws/src/amr_description/config/compact_amr.json`의 두 `lidar_*` 항목에서 변경합니다. 토픽의 timestamp는 시뮬레이션 시간이며, 실제 초당 발행 수는 앱 실행 속도에 따라 달라집니다.
 
 5.1 전용 LaserScan 발행 노드의 첫 메시지 시간 계산 오류를 피하기 위해 Bridge의 범용 `ROS2Publisher`를 사용합니다. 거리 배열은 실제 PhysX 데이터를 연결하며 `intensities`는 빈 배열입니다. 초기 빈 스캔은 발행하지 않습니다.
 

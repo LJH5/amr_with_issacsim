@@ -66,7 +66,7 @@ if(BUILD_TESTING)
   # clang-format replaces the conflicting ROS Uncrustify style check.
   list(APPEND AMENT_LINT_AUTO_EXCLUDE ament_cmake_uncrustify)
   ament_lint_auto_find_test_dependencies()
-  find_program(CLANG_FORMAT NAMES clang-format-18 clang-format REQUIRED)
+  #find_program(CLANG_FORMAT NAMES clang-format-18 clang-format REQUIRED)
   file(GLOB_RECURSE cpp_style_files CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"

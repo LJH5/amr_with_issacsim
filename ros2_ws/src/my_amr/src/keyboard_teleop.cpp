@@ -79,8 +79,8 @@ int main(int argc, char** argv) {
   std::signal(SIGINT, StopSignal);
   std::signal(SIGTERM, StopSignal);
   auto node = std::make_shared<rclcpp::Node>("keyboard_teleop");
-  const double speed = node->declare_parameter("speed_m_s", 0.3);
-  const double yaw_rate = node->declare_parameter("yaw_rate_rad_s", 0.3);
+  const double speed = node->declare_parameter("speed_m_s", 0.5);
+  const double yaw_rate = node->declare_parameter("yaw_rate_rad_s", 0.5);
   const auto topic =
       node->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
   auto publisher =
