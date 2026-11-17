@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(amr_mapping)
 
 find_package(ament_cmake REQUIRED)
-install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config launch rviz map DESTINATION share/${PROJECT_NAME})
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)

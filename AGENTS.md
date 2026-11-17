@@ -141,6 +141,16 @@ amr_control/
 - `amr_mapping`은 설치된 SLAM Toolbox를 사용하며 기본 입력은 `/scan/front`다.
   `scan_topic` launch 인자를 실제 SLAM 파라미터에 전달한다. `map -> odom`은 SLAM만
   발행하고 기존 `odom -> base_footprint` 소유권은 유지한다. 두 LiDAR를 자동 병합하지 않는다.
+- `amr_navigation`은 저장 지도를 map_server로 읽고 AMCL과 Nav2를 사용한다. 매핑과
+  동시에 실행하지 않으며 navigation의 `map -> odom`은 AMCL만 발행한다. AMCL은
+  `/scan/front`와 `OmniMotionModel`, DWB는 X/Y 이동을 사용한다. 전·후방 LiDAR는
+  costmap과 Collision Monitor에 각각 입력한다.
+- Nav2의 명령은 `/cmd_vel_nav -> velocity_smoother -> /cmd_vel_smoothed ->
+  collision_monitor -> /cmd_vel` 순서로 전달한다. 최종 메시지는 기존 C++ 제어기가
+  받는 `geometry_msgs/msg/Twist`이며 navigation 중 키보드 명령을 함께 발행하지 않는다.
+  `odom -> base_footprint`는 기존 휠 오도메트리 노드가 유지한다.
+- 서로 다른 launch를 포함할 때 `params_file` 같은 인자가 다른 노드 설정을 덮어쓰지
+  않도록 GroupAction으로 범위를 분리하고 필요한 하위 설정을 명시한다.
 - 시뮬레이션과 실기체는 가능한 한 같은 상위 ROS 2 인터페이스를 사용한다.
 
 ## 6. 개발 순서 및 단계별 완료 기준
