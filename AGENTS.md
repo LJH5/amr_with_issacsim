@@ -138,6 +138,9 @@ amr_control/
   발행한다. Isaac Sim은 고유한 LiDAR scan·RGB-D 광학 프레임을 발행한다.
   `map -> odom`은 후속 SLAM/위치 추정이 담당한다.
 - 동일 TF에 대해 복수 노드가 중복 발행하지 않도록 책임을 명확히 한다.
+- `amr_mapping`은 설치된 SLAM Toolbox를 사용하며 기본 입력은 `/scan/front`다.
+  `scan_topic` launch 인자를 실제 SLAM 파라미터에 전달한다. `map -> odom`은 SLAM만
+  발행하고 기존 `odom -> base_footprint` 소유권은 유지한다. 두 LiDAR를 자동 병합하지 않는다.
 - 시뮬레이션과 실기체는 가능한 한 같은 상위 ROS 2 인터페이스를 사용한다.
 
 ## 6. 개발 순서 및 단계별 완료 기준

@@ -4,7 +4,12 @@
 
 Ubuntu 24.04 LTS 환경에서 소형 4륜 메카넘 AMR의 시뮬레이션, 로봇 제어, 지도 작성(SLAM), 위치 추정, 경로 계획 및 자율주행을 단계적으로 구현합니다. 최고 병진 속도는 1.5 m/s이며, 초기 모델은 센서 포함 예약 크기 0.48 × 0.44 × 0.34 m로 설계했습니다. 검증된 ROS 2 오픈소스를 활용하고, 이후 실제 로봇 하드웨어로 확장할 수 있도록 모듈형 아키텍처를 지향합니다.
 
-Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백, 대각 LiDAR 두 개 및 전방 RGB-D 카메라의 ROS 2 연동을 검증했습니다. 실제 휠 피드백 기반 `/odom`과 로봇·센서 TF는 [오도메트리 실행 안내](docs/odometry-integration.md)를 따릅니다. IMU 융합과 SLAM/Nav2 통합은 후속 단계입니다.
+Isaac Sim 단독 실행은 [isaac_sim/README.md](isaac_sim/README.md)를 참고하세요. Isaac Sim 5.1에서 물리 주행, IMU·휠 피드백, 대각 LiDAR 두 개 및 전방 RGB-D 카메라의 ROS 2 연동을 검증했습니다. 실제 휠 피드백 기반 `/odom`과 로봇·센서 TF는 [오도메트리 실행 안내](docs/odometry-integration.md)를 따릅니다. SLAM Toolbox 매핑은 [amr_mapping 실행 안내](ros2_ws/src/amr_mapping/README.md)를 따릅니다. IMU 융합과 Nav2 통합은 후속 단계입니다.
+
+매핑은 `ros2 launch amr_mapping mapping.launch.py sim:=true`로 Isaac Sim·주행·TF·SLAM·RViz를
+함께 실행합니다. 기본 라이다는 `/scan/front`이며 `scan_topic:=/scan/rear`처럼 launch 인자로
+변경할 수 있습니다. 이미 시뮬레이터를 띄웠다면 `sim:=true`를 생략하고, 기존 bringup까지
+실행 중이면 `start_bringup:=false`를 지정합니다. 키보드는 기존 방식의 별도 터미널을 사용합니다.
 
 ROS 2 C++ 키보드 주행은 [my_amr 실행 안내](ros2_ws/src/my_amr/README.md)를 따릅니다. 키보드가 `/cmd_vel`을 발행하고 C++ 노드가 네 휠 속도를 계산하며, Isaac Sim Bridge가 이를 조인트에 적용합니다. WASD 이동, Q/E 제자리 좌·우회전, J 정지, Ctrl+C 종료를 지원합니다.
 
