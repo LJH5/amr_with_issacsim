@@ -10,6 +10,37 @@ ROS 노드와 함께 시작하려면 Jazzy 및 워크스페이스 환경을 sour
 
 이 폴더는 **시뮬레이터 구성과 연결**을 담당합니다. 로봇 생성·가져오기, LiDAR·카메라·IMU, 센서 발행, ROS에서 받은 바퀴 명령의 조인트 적용은 여기서 개발합니다. `/cmd_vel` 처리·메카넘 계산·속도 제한·주행 timeout·오도메트리 등 **AMR 제어 로직은 `../ros2_ws/src/`의 ROS 2 C++ 패키지**에서 개발합니다. 기존 `mecanum.py`와 CLI 주행은 초기 검증용이며 운영 제어의 기준 구현으로 확장하지 않습니다. 상세 규칙은 [AGENTS.md](../AGENTS.md)의 개발 위치와 책임 경계를 따릅니다.
 
+## 간단한 매핑 테스트 공간
+
+저장된 `omni_amr.usd`에는 기본 박스만 사용하는 6×4m 가벽 공간을 구성한다.
+외곽 벽 4개, 내부 L자 벽 2개, 짧은 가벽 1개로 총 7개이며 높이 1m·두께 0.1m다.
+가로·세로가 다른 공간과 비대칭 내부 벽으로 라이다 관측 특징을 확보한다.
+외부 미로 에셋·텍스처·다운로드는 사용하지 않는다. 바닥은 6.4×4.4m이고 윗면은 Z=0이다.
+AMR 전체 루트의 출발 위치는 `(-2, -1, 0)`이며 검은 USD 시각 재질을 사용한다.
+휠 회전 확인용 주황색 마커와 질량·관성·조인트·센서·마찰 설정은 유지한다.
+
+기존 방식으로 `bash run.sh` 또는 매핑 launch를 실행하면 이 USD를 불러온다.
+장면이 화면에 안 잡히면 Stage에서 `/World/MappingArea`를 선택하고 F로 맞춘다.
+재생성은 Stop 상태의 Isaac Sim Script Editor에서 다음을 실행한 뒤 Ctrl+S로 저장한다.
+
+```python
+import sys
+import omni.usd
+sys.path.insert(0, '/home/buddha/my_workspace/amr_with_issacsim/isaac_sim')
+from mapping_scene import prepare_mapping_scene
+prepare_mapping_scene(omni.usd.get_context().get_stage())
+```
+
+`mapping_scene.py`는 이 공간의 작성 도구다. 재실행해도 같은 벽을 재사용하며,
+이전에 시도한 `/World/labyrinth_example`은 제거한다. 실행만으로 저장하거나 Play하지 않는다.
+새 URDF로 `--new-scene`을 생성하는 경로는 기존 기본 장면을 사용한다.
+
+2026-11-17: 복사 장면의 실제 Isaac Sim 4초 무명령 시험에서 1초 안정화 이후
+3초간 차체 위치·높이 변동은 측정값 기준 0이었다. 두 PhysX LiDAR 모두 벽 감지를
+확인했고, 검은색 로봇 외관도 렌더링으로 확인했다. 이는 장시간 주행·지도 정확도
+검증과는 구분한다. 재생성 및 중복 생성·스폰 여유·색상 검사는
+`test/check_mapping_scene.py`에 있다(Isaac Sim USD Python 환경 필요).
+
 ## Physics 편집 메뉴
 
 GUI 실행에서는 `scene.py`가 `omni.kit.property.physx`와 의존 확장 `omni.physx.ui`를 매번 활성화합니다. 재실행 후에도 **Create → Physics**와 Property의 **Add → Physics**에서 물리 요소를 편집할 수 있도록 합니다. `--headless`에서는 편집 확장을 추가로 켜지 않습니다. 확장 활성화는 실행 설정이며, USD 저장만으로 다음 실행의 메뉴 활성화가 보장되지는 않습니다.
