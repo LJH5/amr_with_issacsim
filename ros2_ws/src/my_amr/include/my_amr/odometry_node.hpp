@@ -62,8 +62,7 @@ class OdometryNode : public rclcpp::Node {
    * @param stamp 실제 JointState 시각, ROS time.
    * @param velocity 차체 좌표계 [vx, vy, wz], [m/s, m/s, rad/s].
    */
-  void Publish(const rclcpp::Time& stamp,
-               const std::array<double, 3>& velocity);
+  void Publish(const rclcpp::Time& stamp, const std::array<double, 3>& velocity);
 
   MecanumOdometry odometry_;
   PlanarPose pose_{};

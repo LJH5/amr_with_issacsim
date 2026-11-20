@@ -34,8 +34,7 @@ class MecanumOdometry {
    * @param hands FL, FR, RL, RR 롤러 방향, 각각 -1 또는 +1.
    * @throws std::invalid_argument 양수 유한 형상이 아니거나 행렬이 특이할 때.
    */
-  MecanumOdometry(double radius, double wheelbase, double track,
-                  std::array<int, 4> hands);
+  MecanumOdometry(double radius, double wheelbase, double track, std::array<int, 4> hands);
 
   /** @brief 시작 좌표계 원점으로 누적 위치와 yaw를 초기화한다. */
   void Reset();
@@ -46,8 +45,7 @@ class MecanumOdometry {
    * @return 차체 [dx, dy, dyaw] 또는 [vx, vy, wz], 입력의 시간 단위를 따른다.
    * @throws std::invalid_argument 입력에 NaN/Inf가 있을 때.
    */
-  std::array<double, 3> ForwardKinematics(
-      const std::array<double, 4>& wheels) const;
+  std::array<double, 3> ForwardKinematics(const std::array<double, 4>& wheels) const;
 
   /**
    * @brief 일정 차체 twist를 가정한 SE(2) 지수맵으로 회전 증분을 적분한다.

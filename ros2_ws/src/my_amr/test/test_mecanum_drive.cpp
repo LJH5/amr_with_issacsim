@@ -20,20 +20,16 @@
 #include "my_amr/mecanum_drive.hpp"
 
 namespace {
-my_amr::DriveConfig Config() {
-  return {0.075, 0.30, 0.36, 1.5, 1.2, 0.5, 1.0, 35.0, 0.25, {-1, 1, 1, -1}};
-}
+my_amr::DriveConfig Config() { return {0.075, 0.30, 0.36, 1.5, 1.2, 0.5, 1.0, 35.0, 0.25, {-1, 1, 1, -1}}; }
 
 TEST(MecanumDrive, ForwardStrafeAndYaw) {
-  for (const auto command :
-       {std::array<double, 3>{0.03, 0, 0}, {0, 0.03, 0}, {0, 0, 0.05}}) {
+  for (const auto command : {std::array<double, 3>{0.03, 0, 0}, {0, 0.03, 0}, {0, 0, 0.05}}) {
     my_amr::MecanumDrive drive(Config());
     drive.Receive(command, 0);
     const auto actual = drive.Update(0.1, 0.1);
-    const std::array<double, 4> expected =
-        command[0] != 0   ? std::array<double, 4>{0.4, 0.4, 0.4, 0.4}
-        : command[1] != 0 ? std::array<double, 4>{-0.4, 0.4, 0.4, -0.4}
-                          : std::array<double, 4>{-0.22, 0.22, -0.22, 0.22};
+    const std::array<double, 4> expected = command[0] != 0   ? std::array<double, 4>{0.4, 0.4, 0.4, 0.4}
+                                           : command[1] != 0 ? std::array<double, 4>{-0.4, 0.4, 0.4, -0.4}
+                                                             : std::array<double, 4>{-0.22, 0.22, -0.22, 0.22};
     for (size_t i = 0; i < 4; ++i) {
       EXPECT_NEAR(actual[i], expected[i], 1e-9);
     }
