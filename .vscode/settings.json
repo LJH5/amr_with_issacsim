@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/home/buddha/my_workspace/amr_with_issacsim/ros2_ws/src/my_amr"
+    "cmake.sourceDirectory": "/home/buddha/my_workspace/amr_with_issacsim/ros2_ws/src/my_amr",
+    "C_Cpp.intelliSenseEngine": "default"
 }
