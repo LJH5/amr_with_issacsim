@@ -46,8 +46,7 @@ class TerminalMode {
    */
   TerminalMode() {
     if (!isatty(STDIN_FILENO) || tcgetattr(STDIN_FILENO, &saved_) != 0) {
-      throw std::runtime_error(
-          "Run keyboard_teleop in an interactive terminal");
+      throw std::runtime_error("Run keyboard_teleop in an interactive terminal");
     }
     auto mode = saved_;
     mode.c_lflag &= static_cast<tcflag_t>(~(ICANON | ECHO));
@@ -74,23 +73,18 @@ class TerminalMode {
  * Ctrl+C·입력 단절·처리 가능한 오류 시 정지 명령을 발행하고 종료한다.
  */
 int main(int argc, char** argv) {
-  rclcpp::init(argc, argv, rclcpp::InitOptions(),
-               rclcpp::SignalHandlerOptions::None);
+  rclcpp::init(argc, argv, rclcpp::InitOptions(), rclcpp::SignalHandlerOptions::None);
   std::signal(SIGINT, StopSignal);
   std::signal(SIGTERM, StopSignal);
   auto node = std::make_shared<rclcpp::Node>("keyboard_teleop");
   const double speed = node->declare_parameter("speed_m_s", 0.5);
   const double yaw_rate = node->declare_parameter("yaw_rate_rad_s", 0.5);
-  const auto topic =
-      node->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
-  auto publisher =
-      node->create_publisher<geometry_msgs::msg::Twist>(topic, rclcpp::QoS(1));
+  const auto topic = node->declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
+  auto publisher = node->create_publisher<geometry_msgs::msg::Twist>(topic, rclcpp::QoS(1));
   int result = 0;
   try {
-    if (!std::isfinite(speed) || speed <= 0 || !std::isfinite(yaw_rate) ||
-        yaw_rate <= 0) {
-      throw std::invalid_argument(
-          "speed_m_s and yaw_rate_rad_s must be positive and finite");
+    if (!std::isfinite(speed) || speed <= 0 || !std::isfinite(yaw_rate) || yaw_rate <= 0) {
+      throw std::invalid_argument("speed_m_s and yaw_rate_rad_s must be positive and finite");
     }
     TerminalMode terminal;
     geometry_msgs::msg::Twist command;

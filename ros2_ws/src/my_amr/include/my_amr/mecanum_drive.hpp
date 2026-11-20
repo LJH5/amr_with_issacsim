@@ -20,17 +20,16 @@
 namespace my_amr {
 /** @brief ROS 노드가 공통 로봇 제원에서 읽어 전달하는 주행 제한과 휠 형상. */
 struct DriveConfig {
-  double radius;        ///< 휠 반지름 [m].
-  double wheelbase;     ///< 앞뒤 휠 중심 간격 [m].
-  double track;         ///< 좌우 휠 중심 간격 [m].
-  double max_speed;     ///< 병진 속도 벡터의 최대 크기 [m/s].
-  double max_yaw;       ///< 최대 yaw 각속도 [rad/s].
-  double acceleration;  ///< 병진 가속도 벡터의 최대 크기 [m/s^2].
-  double yaw_acceleration;  ///< 최대 yaw 각가속도 [rad/s^2].
-  double max_wheel_speed;   ///< 각 휠의 최대 각속도 크기 [rad/s].
-  double timeout;  ///< 명령 수신 중단 허용 시간 [s], steady clock 기준.
-  std::array<int, 4>
-      handedness;  ///< FL, FR, RL, RR 롤러 방향, 각각 -1 또는 +1.
+  double radius;                  ///< 휠 반지름 [m].
+  double wheelbase;               ///< 앞뒤 휠 중심 간격 [m].
+  double track;                   ///< 좌우 휠 중심 간격 [m].
+  double max_speed;               ///< 병진 속도 벡터의 최대 크기 [m/s].
+  double max_yaw;                 ///< 최대 yaw 각속도 [rad/s].
+  double acceleration;            ///< 병진 가속도 벡터의 최대 크기 [m/s^2].
+  double yaw_acceleration;        ///< 최대 yaw 각가속도 [rad/s^2].
+  double max_wheel_speed;         ///< 각 휠의 최대 각속도 크기 [rad/s].
+  double timeout;                 ///< 명령 수신 중단 허용 시간 [s], steady clock 기준.
+  std::array<int, 4> handedness;  ///< FL, FR, RL, RR 롤러 방향, 각각 -1 또는 +1.
 };
 
 /** @brief ROS 및 시뮬레이터에 의존하지 않는 메카넘 속도 목표 계산기. */

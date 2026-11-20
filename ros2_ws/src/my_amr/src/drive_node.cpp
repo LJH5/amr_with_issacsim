@@ -27,15 +27,12 @@ DriveConfig DriveNode::LoadConfig() {
   config.max_speed = declare_parameter("max_planar_speed_m_s", 0.0);
   config.max_yaw = declare_parameter("max_yaw_rate_rad_s", 0.0);
   config.acceleration = declare_parameter("max_planar_acceleration_m_s2", 0.0);
-  config.yaw_acceleration =
-      declare_parameter("max_yaw_acceleration_rad_s2", 0.0);
+  config.yaw_acceleration = declare_parameter("max_yaw_acceleration_rad_s2", 0.0);
   config.max_wheel_speed = declare_parameter("joint_velocity_limit_rad_s", 0.0);
   config.timeout = declare_parameter("command_timeout_s", 0.0);
-  const auto hands = declare_parameter<std::vector<int64_t>>(
-      "roller_handedness", std::vector<int64_t>{});
+  const auto hands = declare_parameter<std::vector<int64_t>>("roller_handedness", std::vector<int64_t>{});
   if (hands.size() != 4) {
-    throw std::invalid_argument(
-        "Four roller handedness values required; use drive.launch.py");
+    throw std::invalid_argument("Four roller handedness values required; use drive.launch.py");
   }
   for (size_t i = 0; i < 4; ++i) {
     if (hands[i] != -1 && hands[i] != 1) {
@@ -47,48 +44,32 @@ DriveConfig DriveNode::LoadConfig() {
 }
 
 double DriveNode::SteadySeconds() {
-  return std::chrono::duration<double>(
-             std::chrono::steady_clock::now().time_since_epoch())
-      .count();
+  return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-DriveNode::DriveNode()
-    : Node("my_amr_node"),
-      drive_(LoadConfig()),
-      previous_time_(SteadySeconds()) {
-  names_ = declare_parameter<std::vector<std::string>>(
-      "wheel_joint_names", std::vector<std::string>{});
-  if (names_.size() != 4 ||
-      std::set<std::string>(names_.begin(), names_.end()).size() != 4) {
+DriveNode::DriveNode() : Node("my_amr_node"), drive_(LoadConfig()), previous_time_(SteadySeconds()) {
+  names_ = declare_parameter<std::vector<std::string>>("wheel_joint_names", std::vector<std::string>{});
+  if (names_.size() != 4 || std::set<std::string>(names_.begin(), names_.end()).size() != 4) {
     throw std::invalid_argument("Four unique wheel joint names required");
   }
-  const auto input =
-      declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
-  const auto output =
-      declare_parameter<std::string>("wheel_command_topic", "/wheel_commands");
+  const auto input = declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
+  const auto output = declare_parameter<std::string>("wheel_command_topic", "/wheel_commands");
   const double rate = declare_parameter("update_rate_hz", 50.0);
   if (!std::isfinite(rate) || rate <= 0 || rate > 1000) {
     throw std::invalid_argument("update_rate_hz must be in (0, 1000]");
   }
-  publisher_ =
-      create_publisher<sensor_msgs::msg::JointState>(output, rclcpp::QoS(1));
+  publisher_ = create_publisher<sensor_msgs::msg::JointState>(output, rclcpp::QoS(1));
   subscriber_ = create_subscription<geometry_msgs::msg::Twist>(
-      input, rclcpp::QoS(1),
-      [this](geometry_msgs::msg::Twist::ConstSharedPtr message) {
-        drive_.Receive(
-            {message->linear.x, message->linear.y, message->angular.z},
-            SteadySeconds());
+      input, rclcpp::QoS(1), [this](geometry_msgs::msg::Twist::ConstSharedPtr message) {
+        drive_.Receive({message->linear.x, message->linear.y, message->angular.z}, SteadySeconds());
       });
-  timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate),
-                             [this]() { PublishCommand(); });
-  RCLCPP_INFO(get_logger(), "Mecanum control: %s -> %s (rad/s)", input.c_str(),
-              output.c_str());
+  timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate), [this]() { PublishCommand(); });
+  RCLCPP_INFO(get_logger(), "Mecanum control: %s -> %s (rad/s)", input.c_str(), output.c_str());
 }
 
 void DriveNode::PublishCommand() {
   const double current_time = SteadySeconds();
-  const auto wheels =
-      drive_.Update(current_time, current_time - previous_time_);
+  const auto wheels = drive_.Update(current_time, current_time - previous_time_);
   previous_time_ = current_time;
   sensor_msgs::msg::JointState message;
   message.header.stamp = now();

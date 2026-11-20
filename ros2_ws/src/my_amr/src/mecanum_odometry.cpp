@@ -19,8 +19,7 @@
 #include <stdexcept>
 
 namespace my_amr {
-MecanumOdometry::MecanumOdometry(double radius, double wheelbase, double track,
-                                 std::array<int, 4> hands) {
+MecanumOdometry::MecanumOdometry(double radius, double wheelbase, double track, std::array<int, 4> hands) {
   for (double v : {radius, wheelbase, track}) {
     if (!std::isfinite(v) || v <= 0) {
       throw std::invalid_argument("Wheel geometry must be positive and finite");
@@ -32,8 +31,7 @@ MecanumOdometry::MecanumOdometry(double radius, double wheelbase, double track,
     if (hands[i] != -1 && hands[i] != 1) {
       throw std::invalid_argument("Invalid roller handedness");
     }
-    a[i] = {1 / radius, hands[i] / radius,
-            (-ys[i] * track / 2 + hands[i] * xs[i] * wheelbase / 2) / radius};
+    a[i] = {1 / radius, hands[i] / radius, (-ys[i] * track / 2 + hands[i] * xs[i] * wheelbase / 2) / radius};
   }
   // Invert the 3x3 normal matrix to support the shared handedness definition.
   double matrix[3][6]{};
@@ -53,8 +51,7 @@ MecanumOdometry::MecanumOdometry(double radius, double wheelbase, double track,
       }
     }
     if (std::abs(matrix[pivot][c]) < 1e-12) {
-      throw std::invalid_argument(
-          "Mecanum geometry has insufficient planar degrees of freedom");
+      throw std::invalid_argument("Mecanum geometry has insufficient planar degrees of freedom");
     }
     for (size_t k = 0; k < 6; ++k) {
       std::swap(matrix[c][k], matrix[pivot][k]);
@@ -84,8 +81,7 @@ MecanumOdometry::MecanumOdometry(double radius, double wheelbase, double track,
 
 void MecanumOdometry::Reset() { pose_ = {}; }
 
-std::array<double, 3> MecanumOdometry::ForwardKinematics(
-    const std::array<double, 4>& wheels) const {
+std::array<double, 3> MecanumOdometry::ForwardKinematics(const std::array<double, 4>& wheels) const {
   for (double v : wheels) {
     if (!std::isfinite(v)) {
       throw std::invalid_argument("Wheel data must be finite");
@@ -103,10 +99,8 @@ std::array<double, 3> MecanumOdometry::ForwardKinematics(
 PlanarPose MecanumOdometry::Integrate(const std::array<double, 4>& delta) {
   const auto body = ForwardKinematics(delta);
   const double angle = body[2];
-  const double s =
-      std::abs(angle) < 1e-8 ? 1 - angle * angle / 6 : std::sin(angle) / angle;
-  const double c =
-      std::abs(angle) < 1e-8 ? angle / 2 : (1 - std::cos(angle)) / angle;
+  const double s = std::abs(angle) < 1e-8 ? 1 - angle * angle / 6 : std::sin(angle) / angle;
+  const double c = std::abs(angle) < 1e-8 ? angle / 2 : (1 - std::cos(angle)) / angle;
   const double x = s * body[0] - c * body[1], y = c * body[0] + s * body[1];
   pose_.x += std::cos(pose_.yaw) * x - std::sin(pose_.yaw) * y;
   pose_.y += std::sin(pose_.yaw) * x + std::cos(pose_.yaw) * y;

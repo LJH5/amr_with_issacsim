@@ -96,7 +96,16 @@ amr_control/
 - 재사용 가능한 클래스는 `include/<package_name>/*.hpp`에 선언하고 `src/*.cpp`에 구현한다.
 - 실행 파일의 `main()`은 노드 초기화 및 실행 위주로 최소화한다.
 - C++ 스타일의 기준은 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)다. 이전에 정한 중괄호 줄바꿈·namespace 들여쓰기 규칙보다 이 기준을 우선한다. 아래에 명시한 ROS 2 프로젝트 예외를 제외하고 새 코드와 수정 코드에 적용한다.
-- 서식의 기준 파일은 저장소 루트 `.clang-format`이며 `BasedOnStyle: Google`을 사용한다. Ubuntu 24.04의 clang-format 18을 기준으로 자동 정렬한다. 탭 대신 공백 2칸, 기본 줄 길이 80자, namespace 내부 추가 들여쓰기 없음, 접근 지정자 1칸 들여쓰기를 따른다.
+- 서식의 기준 파일은 저장소 루트 `.clang-format`이며 `BasedOnStyle: Google`, `ColumnLimit: 120`을 사용한다. Ubuntu 24.04의 clang-format 18을 기준으로 자동 정렬한다. 탭 대신 공백 2칸, 기본 줄 길이 120자, namespace 내부 추가 들여쓰기 없음, 접근 지정자 1칸 들여쓰기를 따른다. 줄 길이는 Google 기본 80자 대신 프로젝트 가독성을 위한 예외이며 `CPPLINT.cfg`도 120자로 맞춘다.
+- 대입문·함수 호출·선언·`if`/`for` 조건식은 들여쓰기를 포함해 120자 안에 들어가면 가능한 한 한 줄로 작성한다. 짧은 구문을 `=`·`||`·함수 인자 앞에서 불필요하게 나누지 않는다. 120자를 넘거나 람다·중첩 표현식 등 여러 줄이 더 명확한 경우에는 논리 단위로 나누고 clang-format의 후속 줄 들여쓰기를 따른다. 여러 실행문을 한 줄로 합치지는 않는다.
+
+  ```cpp
+  publisher_ = create_publisher<sensor_msgs::msg::JointState>(output, rclcpp::QoS(1));
+  if (names_.size() != 4 || std::set<std::string>(names_.begin(), names_.end()).size() != 4) {
+    throw std::invalid_argument("Four unique wheel joint names required");
+  }
+  ```
+
 - 함수·클래스·namespace·`if`·`for` 등의 여는 중괄호는 선언 또는 조건식과 같은 줄에 배치한다. `} else {`와 `} else if (...) {`도 같은 줄에 연결한다. 긴 조건식은 포매터의 줄바꿈을 따른다.
 
   ```cpp

@@ -80,8 +80,7 @@ class DriveValidation : public rclcpp::Node {
    * @return FL, FR, RL, RR 순서의 유한 휠 값 [rad, rad/s].
    * @throws std::invalid_argument 필드가 없거나 중복·NaN/Inf가 있을 때.
    */
-  Wheels ReadWheels(const sensor_msgs::msg::JointState& message,
-                    bool positions) const;
+  Wheels ReadWheels(const sensor_msgs::msg::JointState& message, bool positions) const;
 
   /** @brief 관절·참값 메시지의 시뮬레이션 timestamp를 검증한다.
    * @param stamp 메시지 시각.
@@ -100,8 +99,7 @@ class DriveValidation : public rclcpp::Node {
    * @param truth world 평면 pose [m, m, rad].
    * @param wheels 실제 휠 값.
    */
-  void ProcessSample(double time, const PlanarPose& truth,
-                     const Wheels& wheels);
+  void ProcessSample(double time, const PlanarPose& truth, const Wheels& wheels);
 
   /** @brief 한 시험의 시작 좌표계와 휠 기준값을 초기화한다.
    * @param time 시작 시뮬레이션 시각 [s].
@@ -131,24 +129,19 @@ class DriveValidation : public rclcpp::Node {
   std::map<int64_t, Sample> pending_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr publisher_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr truth_sub_;
-  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joints_sub_,
-      targets_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joints_sub_, targets_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
   geometry_msgs::msg::Twist command_;
   std::array<double, 4> target_{}, previous_angles_{};
   PlanarPose origin_{}, start_{}, previous_truth_{}, wheel_pose_{};
-  double speed_{}, yaw_rate_{}, drive_seconds_{}, settle_seconds_{},
-      travel_limit_{};
+  double speed_{}, yaw_rate_{}, drive_seconds_{}, settle_seconds_{}, travel_limit_{};
   double stop_linear_{}, stop_yaw_{}, stop_wheel_{}, settled_window_{};
-  double started_wall_{}, received_wall_{}, target_wall_{}, sample_time_{},
-      trial_start_{};
-  double stop_at_{}, last_moving_{}, stop_distance_{}, yaw_{},
-      tracking_squared_{};
+  double started_wall_{}, received_wall_{}, target_wall_{}, sample_time_{}, trial_start_{};
+  double stop_at_{}, last_moving_{}, stop_distance_{}, yaw_{}, tracking_squared_{};
   double previous_yaw_{}, warmup_at_{};
   size_t tracking_count_{0}, rows_{0};
   int repetitions_{}, trial_{0};
-  bool ready_{false}, active_{false}, stopping_{false}, finished_{false},
-      failed_{false};
+  bool ready_{false}, active_{false}, stopping_{false}, finished_{false}, failed_{false};
 };
 }  // namespace my_amr
 #endif  // MY_AMR__DRIVE_VALIDATION_HPP_

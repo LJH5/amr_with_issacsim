@@ -30,8 +30,7 @@ void StopSignal(int signal) { interrupted = signal; }
  * @return 유효한 측정 완료 0, 설정 오류·중단·측정 무효 1.
  */
 int main(int argc, char** argv) {
-  rclcpp::init(argc, argv, rclcpp::InitOptions(),
-               rclcpp::SignalHandlerOptions::None);
+  rclcpp::init(argc, argv, rclcpp::InitOptions(), rclcpp::SignalHandlerOptions::None);
   std::signal(SIGINT, StopSignal);
   std::signal(SIGTERM, StopSignal);
   int result = 1;
