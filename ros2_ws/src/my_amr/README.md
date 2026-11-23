@@ -13,10 +13,45 @@ ROS 2 Jazzy / ament_cmake / C++17 기반 AMR 제어 패키지입니다. 라이�
 | `src/mecanum_drive.cpp`, `include/my_amr/mecanum_drive.hpp` | ROS에 독립적인 메카넘 계산·속도/가속도 제한·timeout |
 | `src/my_amr_node.cpp` | ROS 초기화와 제어 노드 실행 |
 | `launch/drive.launch.py` | amr_description의 공통 JSON 제원을 ROS 파라미터로 전달 |
+| `launch/bringup.launch.py` | 주행·오도메트리·TF 통합 실행, 선택적 Isaac Sim·자동 검증 |
+| `src/odometry_node.cpp`, `include/my_amr/odometry_node.hpp` | 실제 휠 위치 증분으로 `/odom`과 `odom → base_footprint` TF 발행 |
+| `launch/odometry.launch.py`, `config/odometry.yaml` | 오도메트리와 실제 JointState를 사용하는 robot_state_publisher 실행 |
 
 운영 제어는 이 C++ 패키지에서 수행합니다. Isaac Sim에는 바퀴 명령 수신·이름 매핑·단위 변환·통신 watchdog만 둡니다. 기존 Python 기구학은 `--control cli`의 초기 검증용입니다.
 
 ## 빌드와 실행
+
+통합 실행은 프로젝트 루트에서 다음과 같이 시작합니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+cd ros2_ws
+colcon build --packages-select amr_description my_amr --symlink-install
+source install/setup.bash
+ros2 launch my_amr bringup.launch.py sim:=true
+```
+
+Isaac Sim, 주행 제어기, 휠 오도메트리, robot_state_publisher를 함께 실행합니다.
+이미 Isaac Sim을 실행했다면 `sim:=true`를 생략합니다. 기본값은 ROS 노드만 실행합니다.
+기존 `drive.launch.py`, `odometry.launch.py`를 추가로 실행하지 않습니다.
+
+키보드는 입력을 받을 별도 터미널에서 기존처럼 실행합니다.
+ROS launch는 키보드 stdin을 전달하지 않습니다.
+
+```bash
+# 프로젝트 루트의 새 터미널
+source /opt/ros/jazzy/setup.bash
+source ros2_ws/install/setup.bash
+ros2 run my_amr keyboard_teleop
+```
+
+`headless:=true`는 선택한 시뮬레이터의 GUI를 끕니다. `validation:=true`는 자동 주행
+검증 모드이며 키보드를 함께 실행하지 않습니다. 이때 validation.launch.py가 제어기를
+담당하여 중복 생성하지 않습니다. 검증 종료 또는 통합 실행의 Ctrl+C는 함께 시작한
+프로세스를 종료합니다. 다른 터미널에서 따로 시작한 시뮬레이터는 종료하지 않습니다.
+자세한 옵션은 [통합 실행 안내](../../../docs/odometry-integration.md#통합-실행)를 따릅니다.
+
+아래는 기존 개별 실행 방법입니다. 통합 실행과 동시에 사용하지 않습니다.
 
 ```bash
 # 터미널 1: 저장소 루트에서 빌드하고 제어 노드 실행
@@ -74,7 +109,40 @@ ros2 run my_amr keyboard_teleop --ros-args \
 
 일정한 명령도 메시지가 새로 수신되면 유효합니다. Isaac Sim은 native subscriber의 새 메시지 실행 신호를 Counter로 세어 수신 여부를 판정합니다. 잘못된 휠 이름·누락·중복·NaN/Inf·제원 초과 명령은 정지 처리합니다. 정지 중에도 0 속도 명령을 발행합니다.
 
-`/odom`, 폐루프 보정, 장애물 기반 자동 정지, Nav2, ros2_control 하드웨어 인터페이스는 후속 작업입니다. 현재 설치 환경에는 mecanum_drive_controller와 topic 기반 하드웨어 연결이 준비되어 있지 않아 기존 검증한 기구학을 C++ 계산기로 이식했습니다.
+통합 실행에는 `/odom`과 실제 조인트 기반 로봇 TF가 포함됩니다.
+개별 실행을 선택했을 때만 별도 ROS 터미널에서 추가합니다.
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ros2_ws/install/setup.bash
+ros2 launch my_amr odometry.launch.py
+```
+
+개별 실행에서는 기존 `drive.launch.py`와 키보드를 사용합니다. 이 launch는 제어기를 추가로 실행하지
+않고 `wheel_odometry`와 `robot_state_publisher`를 실행합니다. 센서 입력이 끊기면
+오도메트리와 TF도 더 이상 갱신하지 않습니다. 상세 실행·파라미터·검증 결과는
+[오도메트리 연동 기록](../../../docs/odometry-integration.md)을 참고하세요.
+표시용 `amr_description display.launch.py`는 가상 조인트 상태를 발행하므로 함께 실행하지 않습니다.
+
+IMU 융합, 폐루프 보정, 장애물 기반 자동 정지, Nav2, ros2_control 하드웨어 인터페이스는 후속 작업입니다. 현재 설치 환경에는 mecanum_drive_controller와 topic 기반 하드웨어 연결이 준비되어 있지 않아 기존 검증한 기구학을 C++ 계산기로 이식했습니다.
+
+## 자동 주행·마찰 검증
+
+Isaac Sim을 실행한 뒤 별도 터미널에서 다음 launch를 실행합니다.
+기존 키보드와 제어 노드는 종료하세요. 이 launch가 제어 노드를 함께 시작하며
+로봇을 전후·좌우·제자리 회전으로 자동 구동합니다.
+
+```bash
+ros2 launch my_amr validation.launch.py \
+  repetitions:=1 drive_seconds:=1.0 speed_m_s:=0.1 \
+  output_prefix:=log/drive_validation/short
+```
+
+기본값은 6방향 × 3회, 방향별 5초 주행·2초 정지입니다. 실제 관절과
+`/ground_truth/pose`의 동일 시각 데이터를 비교하고 CSV·상태 파일을 남깁니다.
+통신 단절·시간 리셋·중복 제어·이동 한계 초과·정지 조건 미충족 시 중단합니다.
+현재 장면은 실제 저속 전진 후 정지 조건이 충족되지 않았으며 물리 접촉 튜닝이 남아 있습니다.
+실행 인자·CSV 열·검증 결과는 [주행 검증 기록](../../../docs/drive-validation.md)을 참고하세요.
 
 ## 검사와 주석
 
@@ -97,3 +165,22 @@ ROS_DOMAIN_ID=42 python3 src/my_amr/test/keyboard_integration.py --sim
 검증 기록과 네트워크 제한 환경의 XML 스키마 검사 방법은 [키보드 제어 기록](../../../docs/keyboard-control.md)에 정리합니다.
 
 C++ 클래스·함수는 Doxygen 형식으로 문서화합니다. 헤더에는 @brief·@param·@return·@details·@throws와 단위·좌표계·배열 순서·timeout 의미를 적고, 헤더가 없는 함수는 정의부에 작성합니다.
+
+C++ 스타일은 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)를 기준으로 합니다. 저장소 루트 `.clang-format`의 `BasedOnStyle: Google`, `ColumnLimit: 120`에 따라 공백 2칸, 기본 120자, 같은 줄의 여는 중괄호, namespace 내부 추가 들여쓰기 없음으로 정렬합니다. 120자 안의 짧은 대입문·함수 호출·조건식은 가능한 한 한 줄로 유지하고, 긴 구문·람다는 논리 단위로 나눕니다. `CPPLINT.cfg`도 같은 줄 길이를 사용합니다. 일반 함수·메서드는 `Receive()`·`Update()`·`ForwardKinematics()`와 같이 PascalCase를 사용하며 접근자 `finished()`·`failed()`는 유지합니다. C++ 메서드 이름을 참조하는 외부 코드는 변경된 이름으로 갱신해야 합니다.
+
+ROS 2 호환성을 위한 C++17, `.cpp`/`.hpp`, 기존 예외 처리·ament include guard·한국어 Doxygen 문서는 프로젝트 예외입니다. 자세한 규칙은 루트 `AGENTS.md`를 따릅니다. 자동 서식이 Google 가이드의 모든 설계·명명 규칙을 검증하는 것은 아닙니다.
+
+```bash
+# Ubuntu 24.04: 개발 도구 설치 (requirements-apt.txt에도 포함)
+sudo apt install clang-format
+
+# 저장소 루트: 모든 C++ 소스·헤더 정렬
+find ros2_ws/src -type f \( -name '*.cpp' -o -name '*.hpp' \) \
+  -exec clang-format-18 -i {} +
+
+# ros2_ws/: colcon 검사에 Google 서식 검사가 포함됩니다.
+colcon test --packages-select my_amr
+colcon test-result --verbose
+```
+
+서식 검사는 `clang-format-18` 또는 `clang-format`을 찾습니다. 별도 설치 경로는 CMake 인자 `-DCLANG_FORMAT=/path/to/clang-format-18`로 지정할 수 있습니다. 도구가 없으면 서식 검사만 생략하며 빌드는 가능합니다. ROS 기본 Uncrustify 검사는 Google 서식 검사로 대체하며 cpplint의 중괄호 검사는 유지합니다.

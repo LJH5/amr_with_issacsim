@@ -15,6 +15,7 @@ ros-jazzy-ament-lint-common
 ros-jazzy-navigation2
 ros-jazzy-nav2-bringup
 ros-jazzy-slam-toolbox
+ros-jazzy-nav2-map-server
 ros-jazzy-ros2-control
 ros-jazzy-ros2-controllers
 ros-jazzy-xacro

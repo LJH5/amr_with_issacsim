@@ -95,7 +95,40 @@ amr_control/
 - 클래스는 역할이 명확해야 하며, **한 클래스가 통신·제어·경로 계획·UI를 모두 담당하지 않도록** 한다.
 - 재사용 가능한 클래스는 `include/<package_name>/*.hpp`에 선언하고 `src/*.cpp`에 구현한다.
 - 실행 파일의 `main()`은 노드 초기화 및 실행 위주로 최소화한다.
-- 파일명·함수명·변수명은 `snake_case`, 클래스명은 `PascalCase`, 상수는 `kPascalCase`를 기본으로 한다. 외부 라이브러리의 기존 규칙과 통합할 때는 해당 코드베이스의 규칙을 존중한다.
+- C++ 스타일의 기준은 [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)다. 이전에 정한 중괄호 줄바꿈·namespace 들여쓰기 규칙보다 이 기준을 우선한다. 아래에 명시한 ROS 2 프로젝트 예외를 제외하고 새 코드와 수정 코드에 적용한다.
+- 서식의 기준 파일은 저장소 루트 `.clang-format`이며 `BasedOnStyle: Google`, `ColumnLimit: 120`을 사용한다. Ubuntu 24.04의 clang-format 18을 기준으로 자동 정렬한다. 탭 대신 공백 2칸, 기본 줄 길이 120자, namespace 내부 추가 들여쓰기 없음, 접근 지정자 1칸 들여쓰기를 따른다. 줄 길이는 Google 기본 80자 대신 프로젝트 가독성을 위한 예외이며 `CPPLINT.cfg`도 120자로 맞춘다.
+- 대입문·함수 호출·선언·`if`/`for` 조건식은 들여쓰기를 포함해 120자 안에 들어가면 가능한 한 한 줄로 작성한다. 짧은 구문을 `=`·`||`·함수 인자 앞에서 불필요하게 나누지 않는다. 120자를 넘거나 람다·중첩 표현식 등 여러 줄이 더 명확한 경우에는 논리 단위로 나누고 clang-format의 후속 줄 들여쓰기를 따른다. 여러 실행문을 한 줄로 합치지는 않는다.
+
+  ```cpp
+  publisher_ = create_publisher<sensor_msgs::msg::JointState>(output, rclcpp::QoS(1));
+  if (names_.size() != 4 || std::set<std::string>(names_.begin(), names_.end()).size() != 4) {
+    throw std::invalid_argument("Four unique wheel joint names required");
+  }
+  ```
+
+- 함수·클래스·namespace·`if`·`for` 등의 여는 중괄호는 선언 또는 조건식과 같은 줄에 배치한다. `} else {`와 `} else if (...) {`도 같은 줄에 연결한다. 긴 조건식은 포매터의 줄바꿈을 따른다.
+
+  ```cpp
+  namespace my_amr {
+
+  void ProcessItems() {
+    if (condition) {
+      Execute();
+    }
+
+    for (const auto& item : items) {
+      Process(item);
+    }
+  }
+
+  }  // namespace my_amr
+  ```
+
+- 클래스·구조체 이름과 일반 함수·메서드 이름은 `PascalCase`, 변수·파라미터·namespace·파일 이름은 `snake_case`, 클래스 멤버는 `snake_case_`, 상수는 `kPascalCase`를 사용한다. 접근자·설정자는 `finished()`·`set_count()`처럼 `snake_case`를 사용할 수 있다. `main`과 ROS·표준 라이브러리 API 이름 및 외부 인터페이스 이름은 원래 이름을 유지한다.
+- 헤더는 단독으로 include해도 컴파일할 수 있게 필요한 헤더를 직접 포함한다. 관련 헤더, C 시스템 헤더, C++ 표준 헤더, 외부·프로젝트 헤더를 구분해 정렬하며 include guard를 사용한다. namespace 전체를 가져오는 `using namespace`는 사용하지 않는다.
+- 함수 정의와 서로 다른 논리 블록은 필요한 빈 줄 한 줄로 구분한다. Doxygen 주석은 선언에 붙이고, 함수별 주석·선언 그룹 사이에는 빈 줄을 둔다. 연속 빈 줄이나 모든 문장 앞의 기계적인 빈 줄은 추가하지 않는다.
+- Google 가이드 전체와 자동 서식 검사는 구분한다. clang-format은 배치·공백을 검사하고, 이름·소유권·수명·오류 처리·스레드 안전성은 코드 리뷰에서 확인한다. cpplint의 중괄호 검사 제외 설정은 제거하며 기본 검사를 유지한다. ROS 기본 서식과 충돌하는 Uncrustify 검사는 Google clang-format 검사로 대체한다.
+- **ROS 2 프로젝트 예외:** Jazzy와 기존 빌드의 호환성을 위해 C++17 및 `.cpp`/`.hpp` 확장자를 유지한다. 기존 설정 검증과 ROS API가 사용하는 C++ 예외·시작 시 오류 처리 및 한국어 Doxygen 문서를 허용한다. 기존 include guard의 경로 구분용 이중 밑줄은 ament_cpplint와의 호환성을 위해 유지한다. 스타일 전환을 위해 예외를 제거하거나 언어 표준·ROS 토픽·파라미터·실행 파일 이름을 변경하지 않는다. 추가 예외가 필요하면 이유를 이 문서에 기록한다.
 - 매직 넘버를 피하고 상수 또는 ROS 2 파라미터로 명확하게 선언한다.
 - 소유권은 스마트 포인터/RAII로 관리하고 불필요한 전역 변수·수동 메모리 관리를 피한다.
 - 예외·오류·통신 실패·타임아웃을 고려하며, 로그는 `RCLCPP_*` 매크로를 사용한다.
@@ -109,8 +142,24 @@ amr_control/
 - 표준 메시지 타입을 우선 사용한다. 예: `geometry_msgs/msg/Twist`, `nav_msgs/msg/Odometry`, `sensor_msgs/msg/LaserScan`.
 - 메시지·서비스·액션은 의미에 맞게 구분하고, 사용자 정의 인터페이스는 표준 타입으로 해결할 수 없을 때 추가한다.
 - 노드·토픽·프레임 이름은 패키지 간 일관되게 유지하고 launch/파라미터를 통한 리매핑을 지원한다.
-- 기본 TF 체인은 `map -> odom -> base_link -> sensor_frame`을 따른다.
+- 현재 URDF의 TF 체인은 `map -> odom -> base_footprint -> base_link -> sensor_frame`을 따른다.
+  `wheel_odometry`는 `odom -> base_footprint`, `robot_state_publisher`는 URDF 내부 TF를
+  발행한다. Isaac Sim은 고유한 LiDAR scan·RGB-D 광학 프레임을 발행한다.
+  `map -> odom`은 후속 SLAM/위치 추정이 담당한다.
 - 동일 TF에 대해 복수 노드가 중복 발행하지 않도록 책임을 명확히 한다.
+- `amr_mapping`은 설치된 SLAM Toolbox를 사용하며 기본 입력은 `/scan/front`다.
+  `scan_topic` launch 인자를 실제 SLAM 파라미터에 전달한다. `map -> odom`은 SLAM만
+  발행하고 기존 `odom -> base_footprint` 소유권은 유지한다. 두 LiDAR를 자동 병합하지 않는다.
+- `amr_navigation`은 저장 지도를 map_server로 읽고 AMCL과 Nav2를 사용한다. 매핑과
+  동시에 실행하지 않으며 navigation의 `map -> odom`은 AMCL만 발행한다. AMCL은
+  `/scan/front`와 `OmniMotionModel`, DWB는 X/Y 이동을 사용한다. 전·후방 LiDAR는
+  costmap과 Collision Monitor에 각각 입력한다.
+- Nav2의 명령은 `/cmd_vel_nav -> velocity_smoother -> /cmd_vel_smoothed ->
+  collision_monitor -> /cmd_vel` 순서로 전달한다. 최종 메시지는 기존 C++ 제어기가
+  받는 `geometry_msgs/msg/Twist`이며 navigation 중 키보드 명령을 함께 발행하지 않는다.
+  `odom -> base_footprint`는 기존 휠 오도메트리 노드가 유지한다.
+- 서로 다른 launch를 포함할 때 `params_file` 같은 인자가 다른 노드 설정을 덮어쓰지
+  않도록 GroupAction으로 범위를 분리하고 필요한 하위 설정을 명시한다.
 - 시뮬레이션과 실기체는 가능한 한 같은 상위 ROS 2 인터페이스를 사용한다.
 
 ## 6. 개발 순서 및 단계별 완료 기준

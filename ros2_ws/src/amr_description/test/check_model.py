@@ -64,14 +64,16 @@ for name, hand, ysign in zip(wheels['order'], wheels['roller_handedness'], (1, -
     axis_hub = (math.cos(yaw) * math.sin(pitch),
                 math.sin(yaw) * math.sin(pitch), math.cos(pitch))
     axis_robot = (axis_hub[0], axis_hub[2], -axis_hub[1])
+    assert math.isclose(axis_robot[1] / axis_robot[0], hand, abs_tol=1e-8)
     for vx, vy, wz in ((1, 0, 0), (0, 1, 0), (0, 0, 1)):
         x = wheels['wheelbase_m'] / 2 * (1 if name.startswith('front') else -1)
         y = wheels['track_m'] / 2 * ysign
         omega = (vx - wz*y + hand*(vy + wz*x)) / r
-        # Contact velocity is parallel to the passive roller axis.
+        # A passive roller rolls perpendicular to its long axis. There must be
+        # no contact velocity component ALONG that axis (dot, not cross).
         contact_velocity = (vx - wz*y - r*omega, vy + wz*x)
-        cross = contact_velocity[0]*axis_robot[1] - contact_velocity[1]*axis_robot[0]
-        assert abs(cross) < 1e-8, (name, vx, vy, wz)
+        along = contact_velocity[0]*axis_robot[0] + contact_velocity[1]*axis_robot[1]
+        assert abs(along) < 1e-8, (name, vx, vy, wz)
 
 width = wheels['track_m'] + 2 * (
     wheels['roller_length_m']/2 + wheels['roller_radius_m'])

@@ -23,8 +23,10 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 
-add_library(mecanum_drive src/mecanum_drive.cpp)
+add_library(mecanum_drive src/mecanum_drive.cpp src/mecanum_odometry.cpp)
 target_compile_features(mecanum_drive PUBLIC cxx_std_17)
 target_include_directories(mecanum_drive PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,19 +46,44 @@ add_executable(keyboard_teleop src/keyboard_teleop.cpp)
 target_compile_features(keyboard_teleop PRIVATE cxx_std_17)
 ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs)
 
-install(TARGETS my_amr_node keyboard_teleop mecanum_drive
+add_executable(drive_validation src/drive_validation_main.cpp src/drive_validation.cpp)
+target_link_libraries(drive_validation mecanum_drive)
+ament_target_dependencies(drive_validation rclcpp geometry_msgs sensor_msgs)
+
+add_executable(wheel_odometry src/odometry_main.cpp src/odometry_node.cpp)
+target_link_libraries(wheel_odometry mecanum_drive)
+ament_target_dependencies(wheel_odometry rclcpp sensor_msgs geometry_msgs nav_msgs tf2_ros)
+
+install(TARGETS my_amr_node keyboard_teleop drive_validation wheel_odometry mecanum_drive
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
+  # clang-format replaces the conflicting ROS Uncrustify style check.
+  list(APPEND AMENT_LINT_AUTO_EXCLUDE ament_cmake_uncrustify)
   ament_lint_auto_find_test_dependencies()
+  find_program(CLANG_FORMAT NAMES clang-format-18 clang-format)
+  file(GLOB_RECURSE cpp_style_files CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/test/*.cpp")
+  if(CLANG_FORMAT AND EXISTS "${CLANG_FORMAT}")
+    ament_add_test(google_cpp_format
+      COMMAND "${CLANG_FORMAT}" --dry-run --Werror --style=file ${cpp_style_files}
+      GENERATE_RESULT_FOR_RETURN_CODE_ZERO
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+  else()
+    message(STATUS "clang-format not found; skipping google_cpp_format test")
+  endif()
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_mecanum_drive test/test_mecanum_drive.cpp)
   target_link_libraries(test_mecanum_drive mecanum_drive)
+  ament_add_gtest(test_mecanum_odometry test/test_mecanum_odometry.cpp)
+  target_link_libraries(test_mecanum_odometry mecanum_drive)
 endif()
 
 ament_package()

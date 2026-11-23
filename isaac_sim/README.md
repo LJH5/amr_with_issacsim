@@ -2,7 +2,80 @@
 
 이 폴더가 시뮬레이터 실행 진입점입니다. ROS용 원본 모델과 제원은 `../ros2_ws/src/amr_description/`에 두고, 여기서 불러와 지면·조명·물리 장면 및 바퀴 구동을 구성합니다. USD와 실행 스크립트를 ROS 패키지로 옮길 필요는 없습니다.
 
+ROS 노드와 함께 시작하려면 Jazzy 및 워크스페이스 환경을 source한 ROS 터미널에서
+`ros2 launch my_amr bringup.launch.py sim:=true`를 사용합니다.
+기존 run.sh를 호출하면서 주행 제어·오도메트리·로봇 TF를 함께 실행합니다.
+이미 시뮬레이터를 띄웠다면 `sim:=true`를 생략하고 ROS 노드만 시작합니다.
+키보드는 별도 터미널에서 실행하며 [통합 실행 옵션](../docs/odometry-integration.md#통합-실행)을 참고하세요.
+
 이 폴더는 **시뮬레이터 구성과 연결**을 담당합니다. 로봇 생성·가져오기, LiDAR·카메라·IMU, 센서 발행, ROS에서 받은 바퀴 명령의 조인트 적용은 여기서 개발합니다. `/cmd_vel` 처리·메카넘 계산·속도 제한·주행 timeout·오도메트리 등 **AMR 제어 로직은 `../ros2_ws/src/`의 ROS 2 C++ 패키지**에서 개발합니다. 기존 `mecanum.py`와 CLI 주행은 초기 검증용이며 운영 제어의 기준 구현으로 확장하지 않습니다. 상세 규칙은 [AGENTS.md](../AGENTS.md)의 개발 위치와 책임 경계를 따릅니다.
+
+## 간단한 매핑 테스트 공간
+
+저장된 `omni_amr.usd`에는 기본 박스만 사용하는 6×4m 가벽 공간을 구성한다.
+외곽 벽 4개, 내부 L자 벽 2개, 짧은 가벽 1개로 총 7개이며 높이 1m·두께 0.1m다.
+가로·세로가 다른 공간과 비대칭 내부 벽으로 라이다 관측 특징을 확보한다.
+외부 미로 에셋·텍스처·다운로드는 사용하지 않는다. 바닥은 6.4×4.4m이고 윗면은 Z=0이다.
+AMR 전체 루트의 출발 위치는 `(-2, -1, 0)`이며 검은 USD 시각 재질을 사용한다.
+휠 회전 확인용 주황색 마커와 질량·관성·조인트·센서·마찰 설정은 유지한다.
+
+기존 방식으로 `bash run.sh` 또는 매핑 launch를 실행하면 이 USD를 불러온다.
+장면이 화면에 안 잡히면 Stage에서 `/World/MappingArea`를 선택하고 F로 맞춘다.
+재생성은 Stop 상태의 Isaac Sim Script Editor에서 다음을 실행한 뒤 Ctrl+S로 저장한다.
+
+```python
+import sys
+import omni.usd
+sys.path.insert(0, '/home/buddha/my_workspace/amr_with_issacsim/isaac_sim')
+from mapping_scene import prepare_mapping_scene
+prepare_mapping_scene(omni.usd.get_context().get_stage())
+```
+
+`mapping_scene.py`는 이 공간의 작성 도구다. 재실행해도 같은 벽을 재사용하며,
+이전에 시도한 `/World/labyrinth_example`은 제거한다. 실행만으로 저장하거나 Play하지 않는다.
+새 URDF로 `--new-scene`을 생성하는 경로는 기존 기본 장면을 사용한다.
+
+2026-11-17: 복사 장면의 실제 Isaac Sim 4초 무명령 시험에서 1초 안정화 이후
+3초간 차체 위치·높이 변동은 측정값 기준 0이었다. 두 PhysX LiDAR 모두 벽 감지를
+확인했고, 검은색 로봇 외관도 렌더링으로 확인했다. 이는 장시간 주행·지도 정확도
+검증과는 구분한다. 재생성 및 중복 생성·스폰 여유·색상 검사는
+`test/check_mapping_scene.py`에 있다(Isaac Sim USD Python 환경 필요).
+
+## Physics 편집 메뉴
+
+GUI 실행에서는 `scene.py`가 `omni.kit.property.physx`와 의존 확장 `omni.physx.ui`를 매번 활성화합니다. 재실행 후에도 **Create → Physics**와 Property의 **Add → Physics**에서 물리 요소를 편집할 수 있도록 합니다. `--headless`에서는 편집 확장을 추가로 켜지 않습니다. 확장 활성화는 실행 설정이며, USD 저장만으로 다음 실행의 메뉴 활성화가 보장되지는 않습니다.
+
+이미 열린 창에서는 **Window → Extensions**에서 `omni.kit.property.physx`를 검색하여 활성화하거나, 프로그램을 종료한 뒤 `bash run.sh --control ros`로 다시 실행하세요. Physics Material을 생성한 다음에는 실제 Collider의 Physics Material 항목에 연결하고 USD를 저장해야 접촉 마찰 설정이 유지됩니다.
+
+## 휠·바닥 마찰과 회전 표시
+
+`../ros2_ws/src/amr_description/config/compact_amr.json`의 `contact_materials`를
+수정한 뒤 시뮬레이터를 재시작합니다. 현재 롤러와 바닥 각각 정지 마찰 **0.8**,
+운동 마찰 **0.6**, 반발 **0**, 결합 방식 **average**를 사용합니다.
+우레탄·에폭시 접촉을 위한 시뮬레이션 초기값이며 실측 물성값은 아닙니다.
+`materials.py`가 32개 롤러의 Collider와 `/World/Ground`의 Collider에 서로 다른
+Physics Material을 연결합니다. 새 장면과 저장 장면 모두 실행 시 JSON 값을 적용하므로
+GUI에서만 바꾼 마찰값은 다음 실행에서 JSON 값으로 덮어씁니다.
+
+`robot.py`는 저장된 USD의 롤러 축도 공통 URDF와 맞춥니다. 롤러는 자유 회전을
+유지하며, 네 휠 허브 바깥쪽의 주황색 표시가 실제 휠과 함께 회전합니다.
+Q/E에서는 좌우 휠이 서로 반대로 돌아야 합니다. 물리 조인트 적용과 자료형,
+검증 결과는 [AMR 모델 수정 기록](../docs/amr-model-fix.md)을 참고하세요.
+
+## 차체 참값과 자동 주행 검증
+
+ROS 실행에서는 `ground_truth.py`가 실제 `base_link`의 월드 위치·자세를
+`/ground_truth/pose` (`geometry_msgs/PoseStamped`, `frame_id=world`)로 발행합니다.
+이 값은 측정 전용이며 `/odom`이나 로봇 TF를 발행하지 않습니다.
+ROS C++ 자동 검증 실행과 결과 해석은 [주행 검증 기록](../docs/drive-validation.md)을 따릅니다.
+검증 중 다른 키보드·제어 노드를 함께 실행하지 마세요.
+
+실제 `/joint_states`에서 `/odom`을 계산하는 코드는 ROS C++ 패키지에 있습니다.
+`ros2 launch my_amr odometry.launch.py`를 별도 ROS 터미널에서 실행하면
+`odom → base_footprint → base_link`와 URDF 센서 프레임이 연결됩니다.
+Isaac Sim의 두 scan 프레임과 RGB-D 광학 프레임은 서로 다른 이름으로 유지하여
+TF 발행이 겹치지 않습니다. `/ground_truth/pose`는 오도메트리 입력으로 사용하지 않습니다.
+[오도메트리 연동 기록](../docs/odometry-integration.md)에 실행·검증 방법을 정리했습니다.
 
 ## 소형 모델 제원
 
@@ -77,7 +150,7 @@ RViz에서 Image 표시를 추가하고 `/camera/color/image_raw`를 선택합�
 | `/scan/rear` | `sensor_msgs/msg/LaserScan` | `lidar_rear_right_scan` |
 | `/tf_static` | `tf2_msgs/msg/TFMessage` | `base_link` → 두 `*_scan` 프레임 |
 
-각 스캔은 270°, 해상도 0.5°(540개 빔), 거리 0.05–20 m, 목표 20 Hz입니다. 설정은 `../ros2_ws/src/amr_description/config/compact_amr.json`의 두 `lidar_*` 항목에서 변경합니다. 토픽의 timestamp는 시뮬레이션 시간이며, 실제 초당 발행 수는 앱 실행 속도에 따라 달라집니다.
+각 스캔은 270°, 해상도 1°(270개 빔), 거리 0.05–20 m, 목표 20 Hz입니다. 설정은 `../ros2_ws/src/amr_description/config/compact_amr.json`의 두 `lidar_*` 항목에서 변경합니다. 토픽의 timestamp는 시뮬레이션 시간이며, 실제 초당 발행 수는 앱 실행 속도에 따라 달라집니다.
 
 5.1 전용 LaserScan 발행 노드의 첫 메시지 시간 계산 오류를 피하기 위해 Bridge의 범용 `ROS2Publisher`를 사용합니다. 거리 배열은 실제 PhysX 데이터를 연결하며 `intensities`는 빈 배열입니다. 초기 빈 스캔은 발행하지 않습니다.
 
@@ -201,7 +274,8 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `run_amr.py` | 제원 로딩·URDF 재생성, SimulationApp 시작·종료 |
 | `cli.py` | 실행 인자 파싱·검증 |
 | `scene.py` | 편집기 확장, Stage·지면·조명·물리 환경 구성 |
-| `robot.py` | Isaac Sim 버전에 맞는 URDF 가져오기 |
+| `robot.py` | URDF 가져오기, 저장 장면의 롤러 축 정합, 휠 회전 표시 |
+| `materials.py` | JSON의 롤러·바닥 마찰값을 실제 Collider에 연결 |
 | `drive.py` | 휠 드라이브 설정, 수동 롤러 처리, 가속도 제한·속도 적용 |
 | `ros_commands.py` | ROS 바퀴 명령 구독·이름 매핑·통신 watchdog. 메카넘 계산 없음 |
 | `feedback.py` | 물리 IMU 생성, 실제 조인트 상태·IMU ROS 발행 그래프 구성 |
@@ -209,6 +283,7 @@ GUI 실행 시 `omni.graph.window.action`(OmniGraph Action Graph Editor)을 명�
 | `camera.py` | 전방 USD Camera, RGB·깊이·카메라 정보·광학 프레임 TF 구성 |
 | `lidar.py` | 두 PhysX 라이다 생성, LaserScan·센서 TF 발행 그래프 구성 |
 | `test/run_lidar_fixture.py` | GPU/DDS 통합 검증용 이동 장애물 장면, 원본 USD 저장 안 함 |
+| `test/run_model_fix_fixture.py` | SDK에서 실제 롤러 축·마찰 연결·회전 표시·중복 적용 검사 |
 | `mecanum.py` | 시뮬레이터에 의존하지 않는 메카넘 역기구학·속도 제한 |
 | `simulation.py` | 장면 조립·저장, 재생 루프와 종료 시 정지 처리 |
 
@@ -229,6 +304,8 @@ stage.SetDefaultPrim(stage.GetPrimAtPath('/World'))
 USD 라이브러리로 기존 파일의 빈 경로를 재현했고 `/World` 복원 후 `/World/ActionGraph`로 계산되는 것을 확인했습니다. `test/check_graph_anchor.py`는 실제 USD Stage와 모의 importer로 5.x/6.x 코드 경로의 회귀를 검사합니다. 실행 시 Isaac Sim USD 라이브러리가 필요하며 GUI 재클릭 검증은 별도입니다.
 
 ## 검증과 제한
+
+장면 로딩 중 `Aborted (core dumped)`와 USD `Corrupt asset` 오류가 발생하면 [USD 손상 복구 기록](../docs/usd-scene-recovery.md)을 참고하세요. 원본을 먼저 백업하고 정상 커밋의 후보를 검증한 뒤 복구합니다.
 
 ```bash
 python3 ../ros2_ws/src/amr_description/test/check_model.py

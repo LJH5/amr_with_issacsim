@@ -26,27 +26,29 @@ class LidarChecks(unittest.TestCase):
         self.scan = SimpleNamespace(
             header=SimpleNamespace(frame_id=self.name + '_scan',
                                    stamp=SimpleNamespace(sec=1, nanosec=0)),
-            angle_min=math.radians(-135), angle_max=math.radians(134.5),
-            angle_increment=math.radians(0.5), range_min=0.05, range_max=20.0,
-            scan_time=0.05, time_increment=0.05 / 540,
-            ranges=[math.inf] * 540)
+            angle_min=math.radians(-135), angle_max=math.radians(134),
+            angle_increment=math.radians(1), range_min=0.05, range_max=20.0,
+            scan_time=0.05, time_increment=0.05 / 360,
+            ranges=[math.inf] * 270)
 
     def test_horizontal_scan_and_empty_space(self):
         validate_lidar_spec(self.config)
-        self.scan.ranges[270] = 1.1
+        self.scan.ranges[135] = 1.1
         result = scan_values(self.scan, self.name, self.config)
         self.assertEqual(result['hits'], 1)
         self.assertEqual(result['forward_m'], 1.1)
-        self.assertEqual(result['beams'], 540)
+        self.assertEqual(result['beams'], 270)
         metadata = scan_metadata(self.config)
-        self.assertAlmostEqual(metadata['time_increment'], 0.5 / (360 * 20))
+        self.assertAlmostEqual(metadata['angle_increment'], math.radians(1))
+        self.assertAlmostEqual(metadata['angle_max'], math.radians(134))
+        self.assertAlmostEqual(metadata['time_increment'], 1 / (360 * 20))
         self.assertTrue(all(math.isfinite(value) for value in metadata.values()))
 
     def test_bad_scan_is_rejected(self):
         for attribute, value in (('ranges', [1.0]), ('angle_increment', 0),
                                  ('angle_min', 0), ('angle_max', math.pi),
                                  ('scan_time', 0), ('time_increment', -1),
-                                 ('range_max', 30), ('ranges', [math.nan] * 540)):
+                                 ('range_max', 30), ('ranges', [math.nan] * 270)):
             with self.subTest(attribute=attribute, value=str(value)[:30]):
                 scan = copy.deepcopy(self.scan)
                 setattr(scan, attribute, value)

@@ -18,10 +18,8 @@
 #include <set>
 #include <stdexcept>
 
-namespace my_amr
-{
-DriveConfig DriveNode::load_config()
-{
+namespace my_amr {
+DriveConfig DriveNode::LoadConfig() {
   DriveConfig config{};
   config.radius = declare_parameter("wheel_radius_m", 0.0);
   config.wheelbase = declare_parameter("wheelbase_m", 0.0);
@@ -32,8 +30,7 @@ DriveConfig DriveNode::load_config()
   config.yaw_acceleration = declare_parameter("max_yaw_acceleration_rad_s2", 0.0);
   config.max_wheel_speed = declare_parameter("joint_velocity_limit_rad_s", 0.0);
   config.timeout = declare_parameter("command_timeout_s", 0.0);
-  const auto hands = declare_parameter<std::vector<int64_t>>(
-    "roller_handedness", std::vector<int64_t>{});
+  const auto hands = declare_parameter<std::vector<int64_t>>("roller_handedness", std::vector<int64_t>{});
   if (hands.size() != 4) {
     throw std::invalid_argument("Four roller handedness values required; use drive.launch.py");
   }
@@ -46,16 +43,12 @@ DriveConfig DriveNode::load_config()
   return config;
 }
 
-double DriveNode::steady_seconds()
-{
+double DriveNode::SteadySeconds() {
   return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
-DriveNode::DriveNode()
-: Node("my_amr_node"), drive_(load_config()), previous_time_(steady_seconds())
-{
-  names_ = declare_parameter<std::vector<std::string>>(
-    "wheel_joint_names", std::vector<std::string>{});
+DriveNode::DriveNode() : Node("my_amr_node"), drive_(LoadConfig()), previous_time_(SteadySeconds()) {
+  names_ = declare_parameter<std::vector<std::string>>("wheel_joint_names", std::vector<std::string>{});
   if (names_.size() != 4 || std::set<std::string>(names_.begin(), names_.end()).size() != 4) {
     throw std::invalid_argument("Four unique wheel joint names required");
   }
@@ -67,18 +60,16 @@ DriveNode::DriveNode()
   }
   publisher_ = create_publisher<sensor_msgs::msg::JointState>(output, rclcpp::QoS(1));
   subscriber_ = create_subscription<geometry_msgs::msg::Twist>(
-    input, rclcpp::QoS(1), [this](geometry_msgs::msg::Twist::ConstSharedPtr message) {
-      drive_.receive({message->linear.x, message->linear.y, message->angular.z}, steady_seconds());
-    });
-  timer_ = create_wall_timer(
-    std::chrono::duration<double>(1.0 / rate), [this]() {publish_command();});
+      input, rclcpp::QoS(1), [this](geometry_msgs::msg::Twist::ConstSharedPtr message) {
+        drive_.Receive({message->linear.x, message->linear.y, message->angular.z}, SteadySeconds());
+      });
+  timer_ = create_wall_timer(std::chrono::duration<double>(1.0 / rate), [this]() { PublishCommand(); });
   RCLCPP_INFO(get_logger(), "Mecanum control: %s -> %s (rad/s)", input.c_str(), output.c_str());
 }
 
-void DriveNode::publish_command()
-{
-  const double current_time = steady_seconds();
-  const auto wheels = drive_.update(current_time, current_time - previous_time_);
+void DriveNode::PublishCommand() {
+  const double current_time = SteadySeconds();
+  const auto wheels = drive_.Update(current_time, current_time - previous_time_);
   previous_time_ = current_time;
   sensor_msgs::msg::JointState message;
   message.header.stamp = now();
