@@ -44,9 +44,11 @@ def main():
     args = parser.parse_args()
     spec = json.loads((Path(get_package_share_directory('amr_description')) /
                        'config/compact_amr.json').read_text())
-    names = [name + '_wheel_joint' for name in spec['wheels']['order']]
-    radius = spec['wheels']['radius_m']
+    geometry = spec['wheels']
+    names = [name + '_wheel_joint' for name in geometry['order']]
+    radius = geometry['radius_m']
     speed = 0.1
+    yaw_rate = 0.3
     rclpy.init()
     node = rclpy.create_node('keyboard_integration_check')
     state = {'cmd': None, 'wheels': None, 'actual': None}
@@ -101,10 +103,11 @@ def main():
             if args.sim:
                 wait_for(lambda: state['actual'] is not None, 'Isaac Sim startup', 90)
             keyboard = subprocess.Popen(
-                [str(executable), '--ros-args', '-p', f'speed_m_s:={speed}'],
+                [str(executable), '--ros-args', '-p', f'speed_m_s:={speed}',
+                 '-p', f'yaw_rate_rad_s:={yaw_rate}'],
                 stdin=slave, stdout=log, stderr=log)
             wait_for(lambda: state['cmd'] is not None, 'Keyboard startup')
-            turn = 0.3 * (spec['wheels']['wheelbase_m'] + spec['wheels']['track_m']) / (2 * radius)
+            turn = yaw_rate * (geometry['wheelbase_m'] + geometry['track_m']) / (2 * radius)
             commands = [(key, [sign * speed / radius for sign in signs])
                         for key, signs in (('w', (1, 1, 1, 1)), ('s', (-1, -1, -1, -1)),
                                            ('a', (-1, 1, 1, -1)), ('d', (1, -1, -1, 1)))]

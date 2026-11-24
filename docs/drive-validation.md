@@ -46,8 +46,7 @@ cd /home/buddha/my_workspace/amr_with_issacsim/ros2_ws
 source /opt/ros/jazzy/setup.bash
 source install/setup.bash
 ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
-  repetitions:=1 drive_seconds:=1.0 speed_m_s:=0.1 \
-  output_prefix:=log/drive_validation/urethane_epoxy_short
+  repetitions:=1 drive_seconds:=1.0 speed_m_s:=0.1
 ```
 
 위 launch에 제어 노드가 포함되므로 `drive.launch.py`나 키보드를 동시에 실행하지 않는다.
@@ -58,7 +57,7 @@ ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
 
 ```bash
 ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
-  output_prefix:=log/drive_validation/urethane_epoxy_08_06
+  output_prefix:="$PWD/src/my_amr/test/amr_test_report/urethane_epoxy_08_06"
 ```
 
 기본 동작은 전진·후진·좌측·우측·좌회전·우회전 순서로 각 5초 주행 후 2초 정지,
@@ -90,6 +89,8 @@ ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
 공통 `compact_amr.json`의 휠 반지름·간격·롤러 방향으로 기구학 행렬의 최소제곱 역행렬을
 구성한다. FL, FR, RL, RR의 실제 관절 위치 증분을 차체 증분으로 바꾸고 SE(2) 지수맵으로
 적분한다. 단순 `명령 속도 × 시간`을 기대 거리로 사용하지 않는다.
+Isaac Sim에서 휠 각도가 `+2π`와 `−2π` 경계를 넘으면 기본 주기 `4π`로 증분을 보정한다.
+표본 간격 동안 휠이 주기의 절반 이상 회전할 수 있으면 이동 방향을 판별할 수 없어 시험을 중단한다.
 
 참값의 월드 변위를 시험 시작 yaw로 회전해 같은 시작 차체 좌표계에서 비교한다.
 누적 yaw는 각 표본 간 차이를 unwrap해 계산한다. `/wheel_commands`는 현재 제어기에서
@@ -115,16 +116,24 @@ wall clock timestamp를 사용하므로 추종 RMS는 최신 수신 목표와의
 | `stop_yaw_tolerance_rad_s` | 0.03 | 정지 판정의 실제 차체 yaw 속도 한계 |
 | `stop_wheel_tolerance_rad_s` | 0.2 | 정지 판정의 각 휠 속도 크기 한계 |
 | `settled_window_s` | 0.5 | 관찰 종료 전 연속 정지 상태가 필요한 기간 |
-| `output_prefix` | 시각 포함 이름 | CSV·상태 파일 공통 경로 |
+| `position_wrap_period_rad` | 4π | 휠 위치 반복 주기. 누적 각도를 발행하는 엔코더는 0.0 |
+| `output_prefix` | 패키지 소스의 `test/amr_test_report/YYYYMMDD_HHMMSS/drive_validation` | CSV·상태 파일 공통 경로. 직접 지정한 상대 경로는 실행 폴더 기준 |
 
 세 속도 조건을 모두 만족해야 정지로 판정한다. settled_window_s는 settle_seconds보다
 클 수 없다. 관찰 시간이 부족한 경우 `settle_seconds:=5.0`으로 늘릴 수 있다.
 계속 움직이는 로봇을 통과시키려는 목적으로 허용 오차만 늘리지 않는다.
 
 처음에는 모든 데이터가 준비될 때까지 최대 30초 기다리며 0 명령을 유지한다.
-이후 관절·pose 동기 표본 또는 목표 메시지가 wall time 1초 이상 끊기면 중단한다.
-동기 표본 간격이 simulation time 0.25초를 넘거나 시각이 0.5초 넘게 역행해도 중단한다.
-일시정지·장면 변경 이후에는 새 시험으로 다시 시작한다.
+이후 관절·pose 동기 표본 또는 목표 메시지가 wall time 1초 이상 끊기면 0 명령을 보낸다.
+해당 방향은 타임아웃으로 기록한다. 동기 표본과 목표 메시지가 돌아오면
+`settle_seconds` 동안 0 명령을 유지하며 수신을 확인한 뒤 다음 방향부터 시험한다.
+입력이 계속 끊긴 상태에서는 0 명령을 보내며 대기한다. Ctrl+C로 종료할 수 있다.
+로그와 `*_status.txt`에 시작 단계 또는 주행 중 타임아웃 여부와 `/joint_states`,
+`/ground_truth/pose`, `/wheel_commands`, 마지막 동기 표본의 수신 경과 시간이 표시된다.
+개별 센서 토픽은 계속 들어오는데 동기 표본만 오래됐으면 두 메시지의 시각을 비교한다.
+정상 수신 중 동기 표본 간격이 simulation time 0.25초를 넘거나 시각이 0.5초 넘게 역행하면 중단한다.
+타임아웃 후 재생을 재개하면 복구 시점의 휠 위치와 차체 자세를 다음 시험의 기준으로 삼는다.
+장면을 변경하거나 시뮬레이션 시각을 리셋했다면 검증을 다시 시작한다.
 
 다른 cmd_vel 발행자 또는 두 번째 wheel_commands 발행자를 발견하면 중단한다.
 이는 발견 가능한 중복 발행자를 검사하는 기능이며 DDS 검색 이전의 순간적인 경합까지
@@ -132,10 +141,24 @@ wall clock timestamp를 사용하므로 추종 RMS는 최신 수신 목표와의
 
 ## 결과 파일
 
+기본 결과는 `ros2_ws/src/my_amr/test/amr_test_report/YYYYMMDD_HHMMSS/`에 저장한다.
+폴더 이름은 실행을 시작한 로컬 시각이다. 폴더는 자동 생성되고 Git 추적에서 제외된다.
+`validation_integration.py`도 같은 규칙으로 실행 폴더를 만들고 케이스별 CSV와 로그를 함께 저장한다.
+실측 시험의 저장 위치를 직접 정하려면 `output_prefix`에 폴더와 파일 접두어를 지정한다.
+
+- `drive_validation_report.md`: launch 종료 시 생성되는 요약. 방향별 위치·yaw 오차와 정지 미충족·타임아웃을 보여 준다.
+  `output_prefix`를 지정한 경우 파일명의 접두어도 바뀐다.
+- `report.md`: 합성 통합 테스트의 실행별 요약. `complete`의 방향별 오차와 나머지 케이스의 상태를 보여 준다.
 - `*_samples.csv`: 시험·반복·drive/stop 구간, 시각, 명령, 휠 적분 pose,
   시작 차체 좌표계의 실제 변위, 원본 world pose, 휠 위치·속도·최신 목표.
 - `*_summary.csv`: 방향·반복별 전체 주행 및 정지 관찰을 포함한 최종 지표.
-- `*_status.txt`: waiting, running, completed 또는 aborted와 원인.
+- `*_status.txt`: waiting, running, waiting for feedback, completed 또는 aborted와 원인.
+
+기존 실행의 요약은 `ros2_ws/`에서 다음 명령으로 다시 생성할 수 있다.
+
+```bash
+python3 src/my_amr/test/validation_report.py src/my_amr/test/amr_test_report/YYYYMMDD_HHMMSS
+```
 
 | 요약 열 | 해석 |
 | --- | --- |
@@ -149,10 +172,14 @@ wall clock timestamp를 사용하므로 추종 RMS는 최신 수신 목표와의
 | `stop_path_m` | 0 명령 이후 정지 관찰 구간에서 움직인 경로 길이, 흔들림 포함 |
 | `stop_time_s` | 0 명령 후 마지막으로 정지 한계를 넘긴 시점까지의 시간 |
 | `settled` | 정지 관찰 끝에서 연속 정지 조건 충족 여부 |
+| `result` | `completed`, `feedback_timeout` 또는 `target_timeout` |
+| `detail` | 타임아웃 시 입력별 마지막 수신 경과 시간 |
 
-정지하지 않으면 그 시험의 `settled=0` 행을 남기고 다음 방향으로 진행하지 않는다.
-통신 단절 등 중간 실패에서는 완료되지 않은 시험의 요약 행이 없을 수 있다.
-`completed`는 모든 측정을 수집했다는 의미이며 마찰·주행 성능 합격 판정은 아니다.
+정지 관찰 시간 안에 기준을 충족하지 못하면 해당 행에 `settled=0`을 기록하고 다음 방향을 시험한다.
+타임아웃 행에는 마지막 표본 시각과 표본 수를 남긴다. 최종 오차·정지 지표는 빈칸이며
+중단 전 측정값은 `*_samples.csv`에서 볼 수 있다.
+마지막에 전체 시험 수, 정지 기준 미충족 수, 타임아웃 수를 로그와 `*_status.txt`에 표시한다.
+상태 파일의 `completed`는 시험 순서를 끝까지 처리했음을 의미한다. 성능 판정은 각 행을 확인한다.
 ROS launch 자체의 종료 코드만 보지 말고 상태 파일·summary를 함께 확인한다.
 
 ## 검증 결과와 남은 문제
@@ -167,7 +194,8 @@ ROS launch 자체의 종료 코드만 보지 말고 상태 파일·summary를 �
 - 실제 C++ 프로세스와 합성 DDS 입력으로 6방향 × 3회 CSV 생성 검증.
   비영점 월드 시작 위치·yaw, 뒤집힌 휠 이름 순서, 10% 이동 차이를 주입해 비교했다.
 - 목표 스트림이 늦게 시작해도 정지로 기다리는 회귀 검사, Ctrl+C 중단·0 명령 확인.
-- 피드백 단절·시간 리셋·중복 명령 발행을 각각 주입해 중단과 0 휠 목표를 확인.
+- 피드백 단절 시 타임아웃 기록, 0 휠 목표, 복구 후 남은 방향 실행을 확인.
+- 시간 리셋·중복 명령 발행 시 중단과 0 휠 목표를 확인.
 - SDK/GPU fixture에서 비영점 월드 위치·방향을 포함한 160개 표본을 PhysX 원본과 대조.
   위치 차이 최대값은 출력 정밀도에서 0.000000 m였고 쿼터니언 내적은 0.999 이상이었다.
   그래프를 두 번 구성해 재사용도 확인했다. 이 검사는 10 mm 위치 차이를 실패 기준으로 삼는다.
