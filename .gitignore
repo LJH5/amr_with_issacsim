@@ -6,6 +6,7 @@
 **/install/
 **/log/
 **/logs/
+/ros2_ws/src/my_amr/test/amr_test_report/
 
 # CMake artifacts
 CMakeFiles/
