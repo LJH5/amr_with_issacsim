@@ -6,6 +6,7 @@
 **/install/
 **/log/
 **/logs/
+**/amr_test_report/
 
 # CMake artifacts
 CMakeFiles/

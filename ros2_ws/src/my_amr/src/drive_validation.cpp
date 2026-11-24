@@ -17,14 +17,17 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <ctime>
 #include <filesystem>
 #include <iomanip>
 #include <set>
+#include <sstream>
 #include <stdexcept>
 
 namespace my_amr {
 namespace {
 constexpr std::array<const char *, 6> kTests{"forward", "backward", "left", "right", "ccw", "cw"};
+constexpr double kInputTimeoutSeconds = 1.0;
 /** @brief yaw 차이를 [-pi, pi]로 정규화한다. @param angle 차이 [rad]. @return
  * 정규화한 각 [rad]. */
 double Wrap(double angle) { return std::atan2(std::sin(angle), std::cos(angle)); }
@@ -66,6 +69,11 @@ DriveValidation::DriveValidation() : Node("drive_validation") {
   drive_seconds_ = Positive("drive_seconds", 5.0);
   settle_seconds_ = Positive("settle_seconds", 2.0);
   travel_limit_ = Positive("travel_limit_m", 1.5);
+  max_wheel_speed_ = Positive("joint_velocity_limit_rad_s", 35.0);
+  wrap_period_ = declare_parameter("position_wrap_period_rad", 0.0);
+  if (!std::isfinite(wrap_period_) || wrap_period_ < 0) {
+    throw std::invalid_argument("position_wrap_period_rad must be finite and nonnegative");
+  }
   stop_linear_ = Positive("stop_linear_tolerance_m_s", 0.02);
   stop_yaw_ = Positive("stop_yaw_tolerance_rad_s", 0.03);
   stop_wheel_ = Positive("stop_wheel_tolerance_rad_s", 0.2);
@@ -81,9 +89,15 @@ DriveValidation::DriveValidation() : Node("drive_validation") {
   }
   cmd_topic_ = declare_parameter<std::string>("cmd_vel_topic", "/cmd_vel");
   target_topic_ = declare_parameter<std::string>("wheel_command_topic", "/wheel_commands");
-  prefix_ = declare_parameter<std::string>(
-      "output_prefix",
-      "drive_validation_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count()));
+  const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+  std::tm local_time{};
+  if (localtime_r(&now, &local_time) == nullptr) {
+    throw std::runtime_error("Cannot determine local report time");
+  }
+  std::ostringstream stamp;
+  stamp << std::put_time(&local_time, "%Y%m%d_%H%M%S");
+  const auto default_prefix = std::filesystem::path(AMR_TEST_REPORT_DIR) / stamp.str() / "drive_validation";
+  prefix_ = declare_parameter<std::string>("output_prefix", default_prefix.string());
   if (prefix_.empty()) {
     throw std::invalid_argument("output_prefix cannot be empty");
   }
@@ -114,12 +128,13 @@ DriveValidation::DriveValidation() : Node("drive_validation") {
               "rad,"
            << "truth_x_m,truth_y_m,truth_yaw_rad,position_error_m,yaw_error_rad,"
            << "cross_track_m,rotation_center_drift_m,wheel_tracking_rmse_rad_s,"
-           << "stop_path_m,stop_time_s,settled,samples\n";
+           << "stop_path_m,stop_time_s,settled,samples,result,detail\n";
   Status("waiting");
   publisher_ = create_publisher<geometry_msgs::msg::Twist>(cmd_topic_, rclcpp::QoS(1));
   joints_sub_ = create_subscription<sensor_msgs::msg::JointState>(
       "/joint_states", rclcpp::SensorDataQoS().keep_last(100), [this](sensor_msgs::msg::JointState::ConstSharedPtr m) {
         try {
+          joints_wall_ = WallTime();
           const auto key = StampKey(m->header.stamp);
           if (key) {
             pending_[key].wheels = ReadWheels(*m, true);
@@ -133,6 +148,7 @@ DriveValidation::DriveValidation() : Node("drive_validation") {
       "/ground_truth/pose", rclcpp::SensorDataQoS().keep_last(100),
       [this](geometry_msgs::msg::PoseStamped::ConstSharedPtr m) {
         try {
+          truth_wall_ = WallTime();
           const auto key = StampKey(m->header.stamp);
           if (!key) {
             return;
@@ -246,14 +262,16 @@ void DriveValidation::Begin(double time, const PlanarPose &truth, const Wheels &
 }
 
 void DriveValidation::ProcessSample(double time, const PlanarPose &truth, const Wheels &wheels) {
-  received_wall_ = WallTime();
+  const double wall_now = WallTime();
+  const bool feedback_stale = wall_now - received_wall_ > kInputTimeoutSeconds;
+  received_wall_ = wall_now;
   if (!ready_) {
     ready_ = true;
     origin_ = truth;
     warmup_at_ = sample_time_ = time;
   }
   const double dt = time - sample_time_;
-  if (dt > 0.25) {
+  if (!recovering_ && dt > 0.25) {
     throw std::runtime_error("Synchronized data gap exceeds 0.25 simulation seconds");
   }
   sample_time_ = time;
@@ -261,14 +279,26 @@ void DriveValidation::ProcessSample(double time, const PlanarPose &truth, const 
     throw std::runtime_error("Travel limit exceeded; check floor and slip");
   }
   if (!active_) {
-    if (time - warmup_at_ >= settle_seconds_ && target_wall_ > 0) {
+    const bool target_ready = target_wall_ > 0 && wall_now - target_wall_ <= kInputTimeoutSeconds;
+    if (recovering_ && (feedback_stale || dt > 0.25 || !target_ready || warmup_at_ == 0)) {
+      warmup_at_ = time;
+      return;
+    }
+    if (time - warmup_at_ >= settle_seconds_ && target_ready) {
+      recovering_ = false;
       Begin(time, truth, wheels);
     }
     return;
   }
+  if (wrap_period_ > 0 && max_wheel_speed_ * dt + 0.01 >= wrap_period_ / 2) {
+    throw std::runtime_error("Sample gap makes wrapped wheel travel ambiguous");
+  }
   std::array<double, 4> delta{};
   for (size_t i = 0; i < 4; ++i) {
     delta[i] = wheels.position[i] - previous_angles_[i];
+    if (wrap_period_ > 0) {
+      delta[i] = std::remainder(delta[i], wrap_period_);
+    }
   }
   wheel_pose_ = odometry_->Integrate(delta);
   previous_angles_ = wheels.position;
@@ -312,23 +342,21 @@ void DriveValidation::ProcessSample(double time, const PlanarPose &truth, const 
   samples_ << '\n';
   ++rows_;
   if (stopping_ && time - stop_at_ >= settle_seconds_) {
-    Summarize(time, actual);
-    if (time - last_moving_ < settled_window_) {
-      throw std::runtime_error("Robot did not settle; increase settle_seconds or inspect contact");
+    const bool settled = time - last_moving_ >= settled_window_;
+    Summarize(time, actual, settled);
+    if (!settled) {
+      ++unsettled_trials_;
+      RCLCPP_WARN(get_logger(), "Trial %s repetition %d did not settle (settled=0)",
+                  kTests[trial_ % 6], trial_ / 6 + 1);
     }
-    if (++trial_ == repetitions_ * 6) {
-      Status(
-          "completed: measurements collected; no friction acceptance threshold "
-          "applied");
-      finished_ = true;
-      RCLCPP_INFO(get_logger(), "Validation completed: %s_summary.csv", prefix_.c_str());
-    } else {
+    AdvanceTrial();
+    if (!finished_) {
       Begin(time, truth, wheels);
     }
   }
 }
 
-void DriveValidation::Summarize(double time, const PlanarPose &actual) {
+void DriveValidation::Summarize(double time, const PlanarPose &actual, bool settled) {
   const double error = std::hypot(wheel_pose_.x - actual.x, wheel_pose_.y - actual.y);
   const double cross = trial_ % 6 < 2 ? actual.y : (trial_ % 6 < 4 ? actual.x : 0);
   summary_ << kTests[trial_ % 6] << ',' << trial_ / 6 + 1 << ',' << trial_start_ << ',' << time << ',' << wheel_pose_.x
@@ -336,9 +364,41 @@ void DriveValidation::Summarize(double time, const PlanarPose &actual) {
            << ',' << error << ',' << wheel_pose_.yaw - actual.yaw << ',' << cross << ','
            << (trial_ % 6 >= 4 ? std::hypot(actual.x, actual.y) : 0) << ','
            << (tracking_count_ ? std::sqrt(tracking_squared_ / tracking_count_) : 0) << ',' << stop_distance_ << ','
-           << last_moving_ - stop_at_ << ',' << (time - last_moving_ >= settled_window_) << ',' << rows_ << '\n';
+           << last_moving_ - stop_at_ << ',' << settled << ',' << rows_ << ",completed,\n";
   samples_.flush();
   summary_.flush();
+}
+
+void DriveValidation::AdvanceTrial() {
+  if (++trial_ == repetitions_ * 6) {
+    Status("completed: " + std::to_string(trial_) + " trials, " + std::to_string(unsettled_trials_) +
+           " unsettled, " + std::to_string(timed_out_trials_) + " timed out");
+    finished_ = true;
+    RCLCPP_INFO(get_logger(), "Validation completed: %d trials, %d unsettled, %d timed out. Report: %s_summary.csv",
+                trial_, unsettled_trials_, timed_out_trials_, prefix_.c_str());
+  }
+}
+
+void DriveValidation::WaitForFeedback(const char *result, const std::string &detail) {
+  command_ = geometry_msgs::msg::Twist();
+  publisher_->publish(command_);
+  if (active_) {
+    summary_ << kTests[trial_ % 6] << ',' << trial_ / 6 + 1 << ',' << trial_start_ << ',' << sample_time_;
+    // Fourteen empty metric columns, followed by the separator before samples.
+    summary_ << std::string(15, ',') << rows_ << ',' << result << ",\"" << detail << "\"\n";
+    samples_.flush();
+    summary_.flush();
+    ++timed_out_trials_;
+    active_ = false;
+    AdvanceTrial();
+  }
+  RCLCPP_WARN(get_logger(), "%s", detail.c_str());
+  if (!finished_) {
+    recovering_ = true;
+    warmup_at_ = 0;
+    pending_.clear();
+    Status("waiting for feedback: " + detail);
+  }
 }
 
 void DriveValidation::Tick() {
@@ -353,9 +413,35 @@ void DriveValidation::Tick() {
           "testing");
     }
     const bool all_streams_ready = ready_ && target_wall_ > 0;
-    if ((!all_streams_ready && time - started_wall_ > 30) ||
-        (all_streams_ready && (time - received_wall_ > 1 || time - target_wall_ > 1))) {
-      throw std::runtime_error("Feedback/target timeout; simulator may be paused or disconnected");
+    const bool feedback_stale = time - received_wall_ > kInputTimeoutSeconds;
+    const bool target_stale = time - target_wall_ > kInputTimeoutSeconds;
+    if (!recovering_ && ((!all_streams_ready && time - started_wall_ > 30) ||
+                         (all_streams_ready && (feedback_stale || target_stale)))) {
+      std::ostringstream report;
+      report << (all_streams_ready ? "Runtime" : "Startup") << " timeout (time since last input): ";
+      const auto append_age = [&](const std::string &name, double last_received) {
+        report << name << '=';
+        if (last_received > 0) {
+          report << std::fixed << std::setprecision(2) << time - last_received << " s";
+        } else {
+          report << "never received";
+        }
+      };
+      append_age("/joint_states", joints_wall_);
+      report << ", ";
+      append_age("/ground_truth/pose", truth_wall_);
+      report << ", ";
+      append_age(target_topic_, target_wall_);
+      report << ", ";
+      append_age("synchronized feedback", received_wall_);
+      if (!all_streams_ready) {
+        throw std::runtime_error(report.str());
+      }
+      WaitForFeedback(feedback_stale ? "feedback_timeout" : "target_timeout", report.str());
+      return;
+    }
+    if (recovering_ && (feedback_stale || target_stale)) {
+      warmup_at_ = 0;
     }
     publisher_->publish(command_);
   } catch (const std::exception &e) {

@@ -44,7 +44,7 @@ class DriveValidation : public rclcpp::Node {
   bool finished() const { return finished_; }
 
   /** @brief 측정 실패 여부를 반환한다.
-   * @return 데이터 단절·중복 발행자·중단·미정지 등으로 무효이면 true.
+   * @return 데이터 단절·중복 발행자·중단 등으로 시험을 완료하지 못했으면 true.
    */
   bool failed() const { return failed_; }
 
@@ -111,8 +111,18 @@ class DriveValidation : public rclcpp::Node {
   /** @brief 현재 시험의 한 요약 행을 기록한다.
    * @param time 최종 시뮬레이션 시각 [s].
    * @param actual 시험 시작 차체 좌표계의 실제 변위.
+   * @param settled 정지 관찰 종료 시 정지 기준 충족 여부.
    */
-  void Summarize(double time, const PlanarPose& actual);
+  void Summarize(double time, const PlanarPose& actual, bool settled);
+
+  /** @brief 중단된 방향을 기록하고 0 명령으로 피드백 복구를 기다린다.
+   * @param result CSV에 남길 타임아웃 종류.
+   * @param detail 각 입력의 마지막 수신 경과 시간.
+   */
+  void WaitForFeedback(const char* result, const std::string& detail);
+
+  /** @brief 시험 수를 갱신하고 마지막 시험이면 전체 결과를 기록한다. */
+  void AdvanceTrial();
 
   /** @brief wall timer에서 명령 발행·중복 제어·통신 단절을 확인한다. */
   void Tick();
@@ -135,12 +145,15 @@ class DriveValidation : public rclcpp::Node {
   std::array<double, 4> target_{}, previous_angles_{};
   PlanarPose origin_{}, start_{}, previous_truth_{}, wheel_pose_{};
   double speed_{}, yaw_rate_{}, drive_seconds_{}, settle_seconds_{}, travel_limit_{};
+  double wrap_period_{}, max_wheel_speed_{};
   double stop_linear_{}, stop_yaw_{}, stop_wheel_{}, settled_window_{};
   double started_wall_{}, received_wall_{}, target_wall_{}, sample_time_{}, trial_start_{};
+  double joints_wall_{}, truth_wall_{};
   double stop_at_{}, last_moving_{}, stop_distance_{}, yaw_{}, tracking_squared_{};
   double previous_yaw_{}, warmup_at_{};
   size_t tracking_count_{0}, rows_{0};
-  int repetitions_{}, trial_{0};
+  int repetitions_{}, trial_{0}, unsettled_trials_{0}, timed_out_trials_{0};
+  bool recovering_{false};
   bool ready_{false}, active_{false}, stopping_{false}, finished_{false}, failed_{false};
 };
 }  // namespace my_amr

@@ -134,13 +134,18 @@ Isaac Sim을 실행한 뒤 별도 터미널에서 다음 launch를 실행합니�
 
 ```bash
 ros2 launch my_amr validation.launch.py \
-  repetitions:=1 drive_seconds:=1.0 speed_m_s:=0.1 \
-  output_prefix:=log/drive_validation/short
+  repetitions:=1 drive_seconds:=1.0 speed_m_s:=0.1
 ```
 
 기본값은 6방향 × 3회, 방향별 5초 주행·2초 정지입니다. 실제 관절과
 `/ground_truth/pose`의 동일 시각 데이터를 비교하고 CSV·상태 파일을 남깁니다.
-통신 단절·시간 리셋·중복 제어·이동 한계 초과·정지 조건 미충족 시 중단합니다.
+기본 결과는 `my_amr/test/amr_test_report/YYYYMMDD_HHMMSS/`에 저장됩니다.
+방향별 오차와 정지 미충족·타임아웃 횟수는 `drive_validation_report.md`에서 확인할 수 있습니다.
+`validation_integration.py`를 실행했다면 합성 테스트의 전체 결과는 `report.md`에 정리됩니다.
+경로는 `output_prefix`로 바꿀 수 있습니다.
+정지 조건을 충족하지 못한 방향은 `settled=0`으로 기록하고 다음 방향을 시험합니다.
+주행 중 피드백이 끊기면 해당 시험을 타임아웃으로 기록하고, 정지 명령을 보내며 복구를 기다립니다.
+피드백이 돌아오면 다음 방향부터 이어갑니다. 시간 리셋·중복 제어·이동 한계 초과 시에는 중단합니다.
 현재 장면은 실제 저속 전진 후 정지 조건이 충족되지 않았으며 물리 접촉 튜닝이 남아 있습니다.
 실행 인자·CSV 열·검증 결과는 [주행 검증 기록](../../../docs/drive-validation.md)을 참고하세요.
 

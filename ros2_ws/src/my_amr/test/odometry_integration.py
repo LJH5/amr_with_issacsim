@@ -89,8 +89,13 @@ def run_case(publish_tf, wrapped=False, bringup=False):
         spin(0.05)
         return output[-1]
 
-    def near(actual, expected):
-        assert math.isclose(actual, expected, abs_tol=1e-8), (actual, expected)
+    def compare(label, actual, expected, *, exact=False):
+        passed = actual == expected if exact else math.isclose(actual, expected, abs_tol=1e-8)
+        result = 'OK' if passed else 'FAIL'
+        error = abs(actual - expected)
+        print(f'{label:<39} {actual:>15.12g} {expected:>15.12g} {error:>12.3e} {result}',
+              flush=True)
+        assert passed, f'{label}: actual={actual!r}, expected={expected!r}, abs_error={error!r}'
 
     with tempfile.TemporaryDirectory(prefix='amr_odom_test_') as folder:
         parameters = Path(folder) / 'odometry.yaml'
@@ -111,32 +116,41 @@ def run_case(publish_tf, wrapped=False, bringup=False):
                                  ('my_amr_node', 'wheel_odometry', 'robot_state_publisher')),
                      'Bringup must start one controller, one odometry and one RSP')
             spin(0.3)
+            print(f'\nTF={publish_tf}, wrapped={wrapped} (synthetic wheel input)', flush=True)
+            print(f'{"Check":<39} {"Actual":>15} {"Expected":>15} {"Abs. error":>12} Result',
+                  flush=True)
+            print('Float tolerance: abs=1e-8, rel=1e-9. Counts and timestamps use exact equality.',
+                  flush=True)
             positions = [2 * math.pi - 0.05]*4 if wrapped else [10.0, 20.0, 30.0, 40.0]
             stamp = 1000000000
             first = deliver(stamp, positions)
-            near(first.pose.pose.position.x, 0)
-            near(first.pose.pose.orientation.w, 1)
-            for change, expected in [([1.0]*4, (0.075, 0.0)),
-                                     ([-1.0, 1.0, 1.0, -1.0], (0.075, 0.075))]:
+            compare('Initial /odom x [m]', first.pose.pose.position.x, 0)
+            compare('Initial /odom quaternion w', first.pose.pose.orientation.w, 1)
+            for label, change, expected in [
+                    ('Forward', [1.0]*4, (0.075, 0.0)),
+                    ('Strafe left', [-1.0, 1.0, 1.0, -1.0], (0.075, 0.075))]:
                 positions = [a + b for a, b in zip(positions, change)]
                 stamp += 100000000
                 m = deliver(stamp, positions)
-                near(m.pose.pose.position.x, expected[0])
-                near(m.pose.pose.position.y, expected[1])
-            near(m.twist.twist.linear.y, 0.75)
-            near(m.twist.twist.linear.x, 0)
+                compare(f'{label} /odom x [m]', m.pose.pose.position.x, expected[0])
+                compare(f'{label} /odom y [m]', m.pose.pose.position.y, expected[1])
+            compare('Strafe left body vy [m/s]', m.twist.twist.linear.y, 0.75)
+            compare('Strafe left body vx [m/s]', m.twist.twist.linear.x, 0)
             positions = [a + b for a, b in zip(positions, [-0.88, 0.88, -0.88, 0.88])]
             stamp += 100000000
             m = deliver(stamp, positions)
-            near(2 * math.atan2(m.pose.pose.orientation.z, m.pose.pose.orientation.w), 0.2)
-            near(m.twist.twist.angular.z, 2.0)
+            yaw = 2 * math.atan2(m.pose.pose.orientation.z, m.pose.pose.orientation.w)
+            compare('Turn /odom yaw [rad]', yaw, 0.2)
+            compare('Turn body wz [rad/s]', m.twist.twist.angular.z, 2.0)
             positions = [a + 1 for a in positions]
             stamp += 100000000
             m = deliver(stamp, positions)
-            near(m.pose.pose.position.x, 0.075 + 0.075 * math.cos(0.2))
-            near(m.pose.pose.position.y, 0.075 + 0.075 * math.sin(0.2))
-            near(m.twist.twist.linear.x, 0.75)  # Body frame, not world frame.
-            near(m.twist.twist.linear.y, 0)
+            compare('Forward after turn /odom x [m]',
+                    m.pose.pose.position.x, 0.075 + 0.075 * math.cos(0.2))
+            compare('Forward after turn /odom y [m]',
+                    m.pose.pose.position.y, 0.075 + 0.075 * math.sin(0.2))
+            compare('Forward after turn body vx [m/s]', m.twist.twist.linear.x, 0.75)
+            compare('Forward after turn body vy [m/s]', m.twist.twist.linear.y, 0)
             assert m.header.frame_id == 'odom' and m.child_frame_id == 'base_footprint'
             assert all(m.pose.covariance[k] > 0 for k in (0, 7, 14, 21, 28, 35))
             if publish_tf:
@@ -144,14 +158,18 @@ def run_case(publish_tf, wrapped=False, bringup=False):
                 wait(lambda: buffer.can_transform('odom', 'imu_link', sample_time),
                      'Disconnected odom -> base_footprint -> base_link -> IMU')
                 tf = buffer.lookup_transform('odom', 'base_footprint', sample_time)
-                near(tf.transform.translation.x, m.pose.pose.position.x)
-                near(tf.transform.rotation.z, m.pose.pose.orientation.z)
-                assert tf.header.stamp == m.header.stamp
+                compare('TF x vs /odom x [m]', tf.transform.translation.x, m.pose.pose.position.x)
+                compare('TF vs /odom quaternion z', tf.transform.rotation.z,
+                        m.pose.pose.orientation.z)
+                compare('TF vs /odom timestamp [ns]', Time.from_msg(tf.header.stamp).nanoseconds,
+                        sample_time.nanoseconds, exact=True)
                 mounting = buffer.lookup_transform('base_footprint', 'base_link', Time())
-                near(mounting.transform.translation.z, 0.19)
+                compare('base_link mounting z [m]', mounting.transform.translation.z, 0.19)
             else:
-                assert not any(t.child_frame_id == 'base_footprint' for t in transforms)
+                count = sum(t.child_frame_id == 'base_footprint' for t in transforms)
+                compare('base_footprint TF count (disabled)', count, 0, exact=True)
             before = len(output)
+            print('Injecting invalid joint states. A TF2 NaN rejection is expected.', flush=True)
             bad = message(stamp, [a + 100 for a in positions])  # Duplicate time.
             send(bad)
             for mode in ('missing', 'duplicate', 'short', 'nan'):
@@ -166,35 +184,35 @@ def run_case(publish_tf, wrapped=False, bringup=False):
                     bad.position[-1] = math.nan
                 send(bad)
             spin(0.25)
-            assert len(output) == before, 'Invalid input or silence generated new odometry'
+            compare('Invalid input: new /odom count', len(output) - before, 0, exact=True)
             # Restarted simulation time and arbitrary initial encoder angles.
             stamp = 100000000
             positions = [200.0]*4
             m = deliver(stamp, positions)
-            near(m.pose.pose.position.x, 0)
-            near(m.pose.pose.orientation.w, 1)
+            compare('Clock reset /odom x [m]', m.pose.pose.position.x, 0)
+            compare('Clock reset /odom quaternion w', m.pose.pose.orientation.w, 1)
             # A long gap must not integrate unobserved travel or publish a fake zero.
             stamp += 1000000000
             positions = [a + 6 for a in positions]
             before = len(output)
             send(message(stamp, positions))
             spin(0.15)
-            assert len(output) == before
+            compare('Dropout: new /odom count', len(output) - before, 0, exact=True)
             positions = [a + 1 for a in positions]
             stamp += 100000000
             m = deliver(stamp, positions)
-            near(m.pose.pose.position.x, 0.075)
+            compare('After dropout /odom x [m]', m.pose.pose.position.x, 0.075)
             # Implausible encoder reset also rebases without a pose jump.
             stamp += 100000000
             positions = [a + 1000 for a in positions]
             before = len(output)
             send(message(stamp, positions))
             spin(0.15)
-            assert len(output) == before
+            compare('Encoder reset: new /odom count', len(output) - before, 0, exact=True)
             positions = [a + 1 for a in positions]
             stamp += 100000000
             m = deliver(stamp, positions)
-            near(m.pose.pose.position.x, 0.15)
+            compare('After encoder reset /odom x [m]', m.pose.pose.position.x, 0.15)
             if wrapped:
                 # At the configured 35 rad/s limit, 0.2 s could cover more than
                 # half the wrap period. Its direction cannot be inferred safely.
@@ -203,11 +221,11 @@ def run_case(publish_tf, wrapped=False, bringup=False):
                 before = len(output)
                 send(message(stamp, positions))
                 spin(0.15)
-                assert len(output) == before, 'Ambiguous wrapped travel was integrated'
+                compare('Ambiguous wrap: new /odom count', len(output) - before, 0, exact=True)
                 stamp += 100000000
                 positions = [a + 1 for a in positions]
                 m = deliver(stamp, positions)
-                near(m.pose.pose.position.x, 0.225)
+                compare('After ambiguous wrap /odom x [m]', m.pose.pose.position.x, 0.225)
             print('PASS measured odometry, body twist, stamps, TF=' + str(publish_tf) +
                   ', wrapped=' + str(wrapped) +
                   ', malformed input, clock reset, dropout and encoder reset', flush=True)

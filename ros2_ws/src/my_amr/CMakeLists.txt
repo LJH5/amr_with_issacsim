@@ -47,6 +47,10 @@ target_compile_features(keyboard_teleop PRIVATE cxx_std_17)
 ament_target_dependencies(keyboard_teleop rclcpp geometry_msgs)
 
 add_executable(drive_validation src/drive_validation_main.cpp src/drive_validation.cpp)
+set(drive_report_directory "${CMAKE_CURRENT_SOURCE_DIR}/test/amr_test_report")
+target_compile_definitions(drive_validation PRIVATE AMR_TEST_REPORT_DIR="${drive_report_directory}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/drive_report_directory.txt" "${drive_report_directory}\n")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/drive_report_directory.txt" DESTINATION share/${PROJECT_NAME})
 target_link_libraries(drive_validation mecanum_drive)
 ament_target_dependencies(drive_validation rclcpp geometry_msgs sensor_msgs)
 
@@ -60,6 +64,7 @@ install(TARGETS my_amr_node keyboard_teleop drive_validation wheel_odometry meca
   RUNTIME DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY include/ DESTINATION include)
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+install(FILES test/validation_report.py DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

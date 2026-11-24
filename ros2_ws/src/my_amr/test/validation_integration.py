@@ -16,23 +16,24 @@
 Exercise the real C++ validator with synthetic, synchronized ROS feedback.
 
 Use an isolated ROS_DOMAIN_ID with no simulator. This is a measurement-pipeline
-check, not a physics/friction test. Reports remain in a temporary directory.
+check, not a physics/friction test. Reports are saved under test/amr_test_report/.
 """
 import argparse
 import csv
+from datetime import datetime
 import json
 import math
 import os
 from pathlib import Path
 import signal
 import subprocess
-import tempfile
 import time
 
 from geometry_msgs.msg import PoseStamped, Twist
 import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import JointState
+from validation_report import write_report
 
 
 NAMES = [name + '_wheel_joint' for name in
@@ -50,6 +51,7 @@ def run_case(root, mode, bringup=False):
     moved = False
     dropped_at = None
     reset_done = False
+    completes = mode in ('complete', 'unsettled', 'disconnect')
     repetitions = 3 if mode == 'complete' else 1
 
     def receive(message):
@@ -64,14 +66,17 @@ def run_case(root, mode, bringup=False):
         ['ros2', 'launch', 'my_amr',
          'bringup.launch.py' if bringup else 'validation.launch.py',
          *(['validation:=true'] if bringup else []), 'repetitions:=' + str(repetitions),
-         'drive_seconds:=' + ('0.4' if mode == 'complete' else '3.0'),
-         'settle_seconds:=0.8', 'speed_m_s:=0.1', 'output_prefix:=' + str(prefix)],
+         'drive_seconds:=' + ('0.4' if completes and mode != 'disconnect' else '3.0'),
+         'settle_seconds:=0.8', 'speed_m_s:=0.1', 'output_prefix:=' + str(prefix),
+         'summary_markdown:=false'],
         stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    angles = [1.0, 2.0, 3.0, 4.0]
+    angles = [2 * math.pi - offset for offset in (0.05, 0.1, 0.15, 0.2)]
+    crossed_boundary = False
     x, y, yaw = 0.4, -0.2, 0.7
     sim_ns = 1000000000
     started = time.monotonic()
     step = 16666667
+    checked_recovery_wait = False
     try:
         while process.poll() is None and time.monotonic() - started < 25:
             rclpy.spin_once(node, timeout_sec=0.01)
@@ -87,7 +92,11 @@ def run_case(root, mode, bringup=False):
             x += 0.9 * (math.cos(mid)*vx - math.sin(mid)*vy) * dt
             y += 0.9 * (math.sin(mid)*vx + math.cos(mid)*vy) * dt
             yaw += 0.9 * wz * dt
-            angles = [a + v*dt for a, v in zip(angles, target)]
+            measured = target.copy()
+            if mode == 'unsettled' and moved and max(abs(v) for v in target) < 0.05:
+                # Simulate residual wheel rotation after the target falls to zero.
+                measured[0] = 0.4
+            angles = [a + v*dt for a, v in zip(angles, measured)]
             sim_ns += step
             if mode == 'time_reset' and moved and not reset_done:
                 sim_ns = 100000000
@@ -96,9 +105,9 @@ def run_case(root, mode, bringup=False):
             message.header.stamp.sec = sim_ns // 1000000000
             message.header.stamp.nanosec = sim_ns % 1000000000
             message.name = list(reversed(NAMES))
-            message.position = list(reversed(angles))
-            message.velocity = list(reversed(target))
-            joints.publish(message)
+            message.position = [math.remainder(a, 4 * math.pi) for a in reversed(angles)]
+            crossed_boundary = crossed_boundary or any(abs(a) > 2 * math.pi for a in angles)
+            message.velocity = list(reversed(measured))
             pose = PoseStamped()
             pose.header.stamp = message.header.stamp
             pose.header.frame_id = 'world'
@@ -107,30 +116,60 @@ def run_case(root, mode, bringup=False):
             pose.pose.orientation.w = math.cos(yaw / 2)
             if mode == 'disconnect' and moved:
                 dropped_at = dropped_at or time.monotonic()
-            if dropped_at is None:
-                truth.publish(pose)
+            if dropped_at is not None:
+                elapsed = time.monotonic() - dropped_at
+                if elapsed < 1.8:
+                    if elapsed >= 1.4:
+                        status = Path(str(prefix) + '_status.txt').read_text()
+                        assert status.startswith('waiting for feedback: Runtime timeout'), status
+                        assert max(abs(v) for v in target) < 1e-8, target
+                        checked_recovery_wait = True
+                    continue
+            joints.publish(message)
+            truth.publish(pose)
         assert process.poll() is not None, 'Validation launch did not terminate'
         status = Path(str(prefix) + '_status.txt').read_text()
-        if mode == 'complete':
-            assert 'completed:' in status, status
+        if completes:
+            expected_unsettled = 6 if mode == 'unsettled' else 0
+            expected_timeouts = int(mode == 'disconnect')
+            expected_status = (f'completed: {6 * repetitions} trials, '
+                               f'{expected_unsettled} unsettled, {expected_timeouts} timed out')
+            assert status.strip() == expected_status, status
+            if mode != 'disconnect':
+                assert crossed_boundary, 'Synthetic wheel feedback did not cross the wrap boundary'
             rows = list(csv.DictReader(Path(str(prefix) + '_summary.csv').open()))
             expected = ['forward', 'backward', 'left', 'right', 'ccw', 'cw'] * repetitions
             assert [r['trial'] for r in rows] == expected
-            assert [int(r['repetition']) for r in rows] == [1]*6 + [2]*6 + [3]*6
-            for row in rows:
-                assert row['settled'] == '1', row
+            assert [int(r['repetition']) for r in rows] == [
+                n for n in range(1, repetitions + 1) for _ in range(6)]
+            if mode == 'disconnect':
+                assert checked_recovery_wait, 'Did not observe the validator waiting at zero'
+                timeout_row = rows[0]
+                assert timeout_row['result'] == 'feedback_timeout', timeout_row
+                assert timeout_row['settled'] == '' and timeout_row['position_error_m'] == ''
+                assert int(timeout_row['samples']) > 0, timeout_row
+                for field in ('Runtime timeout', '/joint_states=', '/ground_truth/pose=',
+                              '/wheel_commands=', 'synchronized feedback='):
+                    assert field in timeout_row['detail'], timeout_row
+            completed_rows = rows[expected_timeouts:]
+            for row in completed_rows:
+                assert row['result'] == 'completed', row
+                assert row['settled'] == ('0' if mode == 'unsettled' else '1'), row
                 assert int(row['samples']) > 10
-                for axis in ('x_m', 'y_m', 'yaw_rad'):
-                    predicted = float(row['wheel_' + axis])
-                    actual = float(row['truth_' + axis])
-                    assert abs(actual - 0.9 * predicted) < 0.002, (axis, actual, predicted)
-            assert max(float(r['position_error_m']) for r in rows) > 0.001
+                if mode == 'complete':
+                    for axis in ('x_m', 'y_m', 'yaw_rad'):
+                        predicted = float(row['wheel_' + axis])
+                        actual = float(row['truth_' + axis])
+                        assert abs(actual - 0.9 * predicted) < 0.002, (axis, actual, predicted)
+            assert max(float(r['position_error_m']) for r in completed_rows) > 0.001
             samples = list(csv.DictReader(Path(str(prefix) + '_samples.csv').open()))
             assert samples and all(None not in row for row in samples)
             assert abs(float(samples[0]['world_x_m'])) > 0.1
-            print('PASS 18 trials: six directions x3, initial heading, encoder order, slip CSV')
+            assert max(abs(v) for v in target) < 1e-8, target
+            print(f'PASS {mode}: {len(rows)} trial reports, '
+                  f'{expected_unsettled} unsettled, {expected_timeouts} timed out')
         else:
-            expected_error = {'disconnect': 'timeout', 'time_reset': 'time reset',
+            expected_error = {'time_reset': 'time reset',
                               'conflict': 'Multiple command publishers'}[mode]
             assert 'aborted:' in status and expected_error in status, status
             assert moved or mode == 'conflict'
@@ -217,17 +256,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bringup', action='store_true', help='Exercise combined validation mode')
     args = parser.parse_args()
-    root = Path(tempfile.mkdtemp(prefix='amr-validation-dds-'))
+    reports = Path(__file__).resolve().parent / 'amr_test_report'
+    root = reports / datetime.now().strftime('%Y%m%d_%H%M%S')
+    root.mkdir(parents=True)
     rclpy.init()
     try:
         check_startup_wait(root)
         run_case(root, 'complete', args.bringup)
+        run_case(root, 'unsettled', args.bringup)
         run_case(root, 'disconnect', args.bringup)
         run_case(root, 'time_reset', args.bringup)
         run_case(root, 'conflict', args.bringup)
     finally:
         rclpy.shutdown()
         print('Reports:', root)
+        if any(root.glob('*_summary.csv')):
+            print('Summary:', write_report(root))
 
 
 if __name__ == '__main__':

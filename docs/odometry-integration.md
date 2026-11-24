@@ -66,10 +66,11 @@ Isaac Sim 전용 Python 환경을 유지한다. 키보드는 별도 입력 터�
 추가 실행하지 않는다. 정상 주행·검증 모드 모두 제어기는 한 개다.
 아래 명령은 로봇을 자동으로 움직이며 키보드와 함께 사용하지 않는다.
 검증의 repetitions·speed_m_s·output_prefix 등 기존 인자를 그대로 전달할 수 있다.
+검증 결과는 기본으로 `ros2_ws/src/my_amr/test/amr_test_report/`에 저장한다.
 
 ```bash
 ros2 launch my_amr bringup.launch.py sim:=true validation:=true \
-  repetitions:=1 speed_m_s:=0.1 output_prefix:=/tmp/amr_validation
+  repetitions:=1 speed_m_s:=0.1
 ```
 
 통합 launch의 Ctrl+C는 그 launch가 시작한 프로세스를 함께 종료한다.
@@ -244,6 +245,10 @@ source /opt/ros/jazzy/setup.bash
 source ros2_ws/install/setup.bash
 ROS_DOMAIN_ID=63 python3 ros2_ws/src/my_amr/test/odometry_integration.py
 ```
+
+각 케이스의 표에서 `Actual`은 수신한 `/odom`·TF의 값, `Expected`는 테스트의 기대값,
+`Abs. error`는 두 값의 절대 차이다. TF 비교 행은 같은 시각의 `/odom` 값을 기대값으로 쓴다.
+이상 입력 검사에서는 새 `/odom` 메시지 수가 0인지 확인한다. NaN을 넣기 직전에 안내가 출력된다.
 
 원시 native 결과·측정 스크립트는 `ros2_ws/log/odometry/`, 로그는
 `/tmp/amr_odometry_*.log`에 보존했다(Git 제외). 원본 USD와 마찰 설정은 변경하지 않았다.
