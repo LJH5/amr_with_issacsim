@@ -57,7 +57,7 @@ ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
 
 ```bash
 ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
-  output_prefix:="$PWD/src/my_amr/test/amr_test_report/urethane_epoxy_08_06"
+  output_prefix:="$PWD/src/my_amr/test/amr_test_report/urethane_epoxy_08_06/drive_validation"
 ```
 
 기본 동작은 전진·후진·좌측·우측·좌회전·우회전 순서로 각 5초 주행 후 2초 정지,
@@ -66,7 +66,7 @@ ROS_DOMAIN_ID=42 ros2 launch my_amr validation.launch.py \
 
 각 시험의 시작 pose를 기준으로 변위를 0으로 만들지만 로봇을 순간이동·자동 재배치하지는
 않는다. 다른 마찰 조건과 비교할 때는 같은 장면·시작 pose에서 다시 실행하고
-새 output_prefix를 사용한다. 기존 결과 파일은 덮어쓰지 않는다.
+새 실행 폴더를 `output_prefix`에 지정한다.
 
 ## 입력·출력과 계산
 
@@ -117,7 +117,7 @@ wall clock timestamp를 사용하므로 추종 RMS는 최신 수신 목표와의
 | `stop_wheel_tolerance_rad_s` | 0.2 | 정지 판정의 각 휠 속도 크기 한계 |
 | `settled_window_s` | 0.5 | 관찰 종료 전 연속 정지 상태가 필요한 기간 |
 | `position_wrap_period_rad` | 4π | 휠 위치 반복 주기. 누적 각도를 발행하는 엔코더는 0.0 |
-| `output_prefix` | 패키지 소스의 `test/amr_test_report/YYYYMMDD_HHMMSS/drive_validation` | CSV·상태 파일 공통 경로. 직접 지정한 상대 경로는 실행 폴더 기준 |
+| `output_prefix` | 패키지 소스의 `test/amr_test_report/YYYYMMDD_HHMMSS/drive_validation` | 실행 폴더와 파일 접두어. 원본 파일은 해당 폴더의 `report_data/`에 저장 |
 
 세 속도 조건을 모두 만족해야 정지로 판정한다. settled_window_s는 settle_seconds보다
 클 수 없다. 관찰 시간이 부족한 경우 `settle_seconds:=5.0`으로 늘릴 수 있다.
@@ -143,16 +143,24 @@ wall clock timestamp를 사용하므로 추종 RMS는 최신 수신 목표와의
 
 기본 결과는 `ros2_ws/src/my_amr/test/amr_test_report/YYYYMMDD_HHMMSS/`에 저장한다.
 폴더 이름은 실행을 시작한 로컬 시각이다. 폴더는 자동 생성되고 Git 추적에서 제외된다.
-`validation_integration.py`도 같은 규칙으로 실행 폴더를 만들고 케이스별 CSV와 로그를 함께 저장한다.
-실측 시험의 저장 위치를 직접 정하려면 `output_prefix`에 폴더와 파일 접두어를 지정한다.
 
-- `drive_validation_report.md`: launch 종료 시 생성되는 요약. 방향별 위치·yaw 오차와 정지 미충족·타임아웃을 보여 준다.
-  `output_prefix`를 지정한 경우 파일명의 접두어도 바뀐다.
-- `report.md`: 합성 통합 테스트의 실행별 요약. `complete`의 방향별 오차와 나머지 케이스의 상태를 보여 준다.
-- `*_samples.csv`: 시험·반복·drive/stop 구간, 시각, 명령, 휠 적분 pose,
-  시작 차체 좌표계의 실제 변위, 원본 world pose, 휠 위치·속도·최신 목표.
-- `*_summary.csv`: 방향·반복별 전체 주행 및 정지 관찰을 포함한 최종 지표.
-- `*_status.txt`: waiting, running, waiting for feedback, completed 또는 aborted와 원인.
+```text
+amr_test_report/YYYYMMDD_HHMMSS/
+├── report.md
+└── report_data/
+    ├── *_samples.csv
+    ├── *_summary.csv
+    ├── *_status.txt
+    └── *.log (합성 통합 테스트)
+```
+
+- `report.md`는 launch 또는 합성 통합 테스트 종료 시 생성된다. 방향별 위치·yaw 오차와 정지 미충족·타임아웃을 보여 준다.
+  합성 테스트는 한 파일에 `complete`의 방향별 오차와 나머지 케이스의 상태를 모은다.
+- `report_data/*_samples.csv`에는 시험·반복·drive/stop 구간, 시각, 명령, 휠 적분 pose,
+  시작 차체 좌표계의 실제 변위, 원본 world pose, 휠 위치·속도·최신 목표가 들어간다.
+- `report_data/*_summary.csv`에는 방향·반복별 전체 주행 및 정지 관찰의 최종 지표가 들어간다.
+- `report_data/*_status.txt`에는 waiting, running, waiting for feedback, completed 또는 aborted와 원인이 들어간다.
+- `report_data/*.log`는 `validation_integration.py`가 케이스별로 수집한 출력이다.
 
 기존 실행의 요약은 `ros2_ws/`에서 다음 명령으로 다시 생성할 수 있다.
 

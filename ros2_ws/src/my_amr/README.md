@@ -140,9 +140,9 @@ ros2 launch my_amr validation.launch.py \
 기본값은 6방향 × 3회, 방향별 5초 주행·2초 정지입니다. 실제 관절과
 `/ground_truth/pose`의 동일 시각 데이터를 비교하고 CSV·상태 파일을 남깁니다.
 기본 결과는 `my_amr/test/amr_test_report/YYYYMMDD_HHMMSS/`에 저장됩니다.
-방향별 오차와 정지 미충족·타임아웃 횟수는 `drive_validation_report.md`에서 확인할 수 있습니다.
-`validation_integration.py`를 실행했다면 합성 테스트의 전체 결과는 `report.md`에 정리됩니다.
-경로는 `output_prefix`로 바꿀 수 있습니다.
+`report.md`에서 방향별 오차와 정지 미충족·타임아웃 횟수를 확인할 수 있습니다.
+CSV·상태 파일과 합성 통합 테스트의 로그는 같은 실행 폴더의 `report_data/`에 모입니다.
+실행 폴더와 파일 접두어는 `output_prefix`로 바꿀 수 있습니다.
 정지 조건을 충족하지 못한 방향은 `settled=0`으로 기록하고 다음 방향을 시험합니다.
 주행 중 피드백이 끊기면 해당 시험을 타임아웃으로 기록하고, 정지 명령을 보내며 복구를 기다립니다.
 피드백이 돌아오면 다음 방향부터 이어갑니다. 시간 리셋·중복 제어·이동 한계 초과 시에는 중단합니다.

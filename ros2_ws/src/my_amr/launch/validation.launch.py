@@ -23,7 +23,7 @@ import runpy
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import (DeclareLaunchArgument, EmitEvent, IncludeLaunchDescription,
-                            RegisterEventHandler)
+                            OpaqueFunction, RegisterEventHandler)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
@@ -59,31 +59,36 @@ def generate_launch_description():
     prefix = str(run_directory / 'drive_validation')
     declarations.append(DeclareLaunchArgument(
         'output_prefix', default_value=prefix,
-        description='Report path prefix. Defaults to the source package test report directory.'))
+        description='Run directory and file prefix. Raw files go under report_data.'))
     declarations.append(DeclareLaunchArgument(
         'summary_markdown', default_value='true', description='Write a Markdown summary on exit'))
-    geometry['output_prefix'] = LaunchConfiguration('output_prefix')
     drive = package / 'launch/drive.launch.py'
-    validation = Node(package='my_amr', executable='drive_validation', output='screen',
-                      parameters=[geometry])
 
-    def on_validation_exit(_event, context):
-        if IfCondition(LaunchConfiguration('summary_markdown')).evaluate(context):
-            output = Path(LaunchConfiguration('output_prefix').perform(context))
-            if output.with_name(output.name + '_summary.csv').is_file():
+    def start_validation(context):
+        output = Path(LaunchConfiguration('output_prefix').perform(context))
+        if not output.name:
+            raise ValueError('output_prefix must include a file prefix')
+        if output.parent.name != 'report_data':
+            output = output.parent / 'report_data' / output.name
+        validation = Node(package='my_amr', executable='drive_validation', output='screen',
+                          parameters=[{**geometry, 'output_prefix': str(output)}])
+        summarize = IfCondition(LaunchConfiguration('summary_markdown')).evaluate(context)
+
+        def on_validation_exit(_event, _context):
+            if summarize and output.with_name(output.name + '_summary.csv').is_file():
                 logger = get_logger('drive_validation_report')
                 try:
                     functions = runpy.run_path(str(package / 'validation_report.py'))
                     write_report = functions['write_report']
-                    report = write_report(output.parent, prefix=output.name)
+                    report = write_report(output.parent.parent, prefix=output.name)
                     logger.info(f'Report: {report.resolve()}')
                 except (OSError, csv.Error, ValueError) as error:
                     logger.warning(f'Could not write Markdown summary: {error}')
-        return [EmitEvent(event=Shutdown(reason='Validation finished'))]
+            return [EmitEvent(event=Shutdown(reason='Validation finished'))]
+
+        return [RegisterEventHandler(OnProcessExit(
+            target_action=validation, on_exit=on_validation_exit)), validation]
 
     return LaunchDescription(declarations + [
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(drive))),
-        RegisterEventHandler(OnProcessExit(
-            target_action=validation,
-            on_exit=on_validation_exit)),
-        validation])
+        OpaqueFunction(function=start_validation)])

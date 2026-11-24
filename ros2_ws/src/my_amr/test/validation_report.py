@@ -37,8 +37,11 @@ def trial_counts(rows):
 
 def write_report(directory, *, prefix=None):
     """Write one Markdown report, using only per-trial summaries and run statuses."""
-    summaries = ([directory / f'{prefix}_summary.csv'] if prefix else
-                 sorted(directory.glob('*_summary.csv')))
+    data = directory / 'report_data'
+    if not data.is_dir():
+        data = directory  # Reports from older runs stored their CSVs beside the Markdown.
+    summaries = ([data / f'{prefix}_summary.csv'] if prefix else
+                 sorted(data.glob('*_summary.csv')))
     if not summaries:
         raise FileNotFoundError(f'No validation summary CSV found in {directory}')
 
@@ -48,7 +51,7 @@ def write_report(directory, *, prefix=None):
         name = summary.stem.removesuffix('_summary')
         with summary.open(encoding='utf-8', newline='') as stream:
             trials[name] = list(csv.DictReader(stream))
-        status = directory / f'{name}_status.txt'
+        status = data / f'{name}_status.txt'
         statuses[name] = status.read_text(encoding='utf-8').strip() if status.is_file() else '미기록'
 
     synthetic = prefix is None and {'complete', 'startup_wait'} <= trials.keys()
@@ -98,7 +101,7 @@ def write_report(directory, *, prefix=None):
             lines.append(
                 f'| `{name}` | {len(measurements)} | {unsettled} | {timeouts} | {status} |')
 
-    report = directory / (f'{prefix}_report.md' if prefix else 'report.md')
+    report = directory / 'report.md'
     report.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return report
 

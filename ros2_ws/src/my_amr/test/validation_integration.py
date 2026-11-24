@@ -259,19 +259,22 @@ def main():
     reports = Path(__file__).resolve().parent / 'amr_test_report'
     root = reports / datetime.now().strftime('%Y%m%d_%H%M%S')
     root.mkdir(parents=True)
+    data = root / 'report_data'
+    data.mkdir()
     rclpy.init()
     try:
-        check_startup_wait(root)
-        run_case(root, 'complete', args.bringup)
-        run_case(root, 'unsettled', args.bringup)
-        run_case(root, 'disconnect', args.bringup)
-        run_case(root, 'time_reset', args.bringup)
-        run_case(root, 'conflict', args.bringup)
+        check_startup_wait(data)
+        run_case(data, 'complete', args.bringup)
+        run_case(data, 'unsettled', args.bringup)
+        run_case(data, 'disconnect', args.bringup)
+        run_case(data, 'time_reset', args.bringup)
+        run_case(data, 'conflict', args.bringup)
     finally:
         rclpy.shutdown()
         print('Reports:', root)
-        if any(root.glob('*_summary.csv')):
+        if any(data.glob('*_summary.csv')):
             print('Summary:', write_report(root))
+    assert {path.name for path in root.iterdir()} == {'report.md', 'report_data'}
 
 
 if __name__ == '__main__':

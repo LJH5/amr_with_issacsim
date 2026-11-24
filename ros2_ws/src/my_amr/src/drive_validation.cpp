@@ -96,7 +96,8 @@ DriveValidation::DriveValidation() : Node("drive_validation") {
   }
   std::ostringstream stamp;
   stamp << std::put_time(&local_time, "%Y%m%d_%H%M%S");
-  const auto default_prefix = std::filesystem::path(AMR_TEST_REPORT_DIR) / stamp.str() / "drive_validation";
+  const auto run_directory = std::filesystem::path(AMR_TEST_REPORT_DIR) / stamp.str();
+  const auto default_prefix = run_directory / "report_data" / "drive_validation";
   prefix_ = declare_parameter<std::string>("output_prefix", default_prefix.string());
   if (prefix_.empty()) {
     throw std::invalid_argument("output_prefix cannot be empty");
