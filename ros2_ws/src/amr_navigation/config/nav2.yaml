@@ -16,6 +16,11 @@ amcl:
     max_particles: 1000
     max_beams: 60
     laser_model_type: likelihood_field
+    # Initial tuning for a 5 cm map and wheel twist that can overestimate travel under slip.
+    sigma_hit: 0.10
+    alpha3: 0.5
+    # Isaac Sim in-place turns showed little chassis translation.
+    alpha4: 0.02
     laser_min_range: 0.05
     laser_max_range: 20.0
     laser_likelihood_max_dist: 2.0
@@ -30,6 +35,7 @@ map_server:
 controller_server:
   ros__parameters:
     enable_stamped_cmd_vel: false
+    odom_topic: /odom
     controller_frequency: 20.0
     min_x_velocity_threshold: 0.001
     min_y_velocity_threshold: 0.001
@@ -46,7 +52,7 @@ controller_server:
       plugin: nav2_controller::SimpleGoalChecker
       stateful: true
       xy_goal_tolerance: 0.12
-      yaw_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.08
     FollowPath:
       plugin: dwb_core::DWBLocalPlanner
       debug_trajectory_details: false
@@ -83,7 +89,8 @@ controller_server:
       Twirling.scale: 1.0
       RotateToGoal.scale: 32.0
       RotateToGoal.slowing_factor: 5.0
-      RotateToGoal.lookahead_time: -1.0
+      # Score a near-term heading so the chassis keeps turning close to the goal.
+      RotateToGoal.lookahead_time: 0.5
 
 local_costmap:
   local_costmap:

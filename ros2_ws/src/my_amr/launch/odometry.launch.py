@@ -39,9 +39,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('publish_tf', default_value='true'),
+        DeclareLaunchArgument('odom_topic', default_value='/odom',
+                              description='Remap the default wheel odometry output topic'),
         DeclareLaunchArgument('params_file', default_value=str(package / 'config/odometry.yaml')),
         Node(package='my_amr', executable='wheel_odometry', output='screen',
-             parameters=[LaunchConfiguration('params_file'), geometry]),
+             parameters=[LaunchConfiguration('params_file'), geometry],
+             remappings=[('/odom', LaunchConfiguration('odom_topic'))]),
         Node(package='robot_state_publisher', executable='robot_state_publisher', output='screen',
              parameters=[{'robot_description': (description / 'urdf/compact_amr.urdf').read_text(),
                           'use_sim_time': simulation}]),

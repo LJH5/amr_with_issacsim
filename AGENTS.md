@@ -143,8 +143,8 @@ amr_control/
 - 메시지·서비스·액션은 의미에 맞게 구분하고, 사용자 정의 인터페이스는 표준 타입으로 해결할 수 없을 때 추가한다.
 - 노드·토픽·프레임 이름은 패키지 간 일관되게 유지하고 launch/파라미터를 통한 리매핑을 지원한다.
 - 현재 URDF의 TF 체인은 `map -> odom -> base_footprint -> base_link -> sensor_frame`을 따른다.
-  `wheel_odometry`는 `odom -> base_footprint`, `robot_state_publisher`는 URDF 내부 TF를
-  발행한다. Isaac Sim은 고유한 LiDAR scan·RGB-D 광학 프레임을 발행한다.
+  `robot_state_publisher`는 URDF 내부 TF를 발행한다. Isaac Sim은 고유한 LiDAR scan·RGB-D
+  광학 프레임을 발행한다.
   `map -> odom`은 후속 SLAM/위치 추정이 담당한다.
 - 동일 TF에 대해 복수 노드가 중복 발행하지 않도록 책임을 명확히 한다.
 - `amr_mapping`은 설치된 SLAM Toolbox를 사용하며 기본 입력은 `/scan/front`다.
@@ -157,7 +157,9 @@ amr_control/
 - Nav2의 명령은 `/cmd_vel_nav -> velocity_smoother -> /cmd_vel_smoothed ->
   collision_monitor -> /cmd_vel` 순서로 전달한다. 최종 메시지는 기존 C++ 제어기가
   받는 `geometry_msgs/msg/Twist`이며 navigation 중 키보드 명령을 함께 발행하지 않는다.
-  `odom -> base_footprint`는 기존 휠 오도메트리 노드가 유지한다.
+  navigation에서 `odom -> base_footprint`와 `/odom`은 EKF가 발행한다. 휠 오도메트리는
+  `/wheel/odom`으로 속도 추정치를 전달하고, EKF는 공분산을 보완한 IMU의 Z축 각속도와 상대 yaw도 사용한다.
+  휠 오도메트리만 사용하는 실행에서는 기존 노드가 `/odom`과 해당 TF를 발행한다.
 - 서로 다른 launch를 포함할 때 `params_file` 같은 인자가 다른 노드 설정을 덮어쓰지
   않도록 GroupAction으로 범위를 분리하고 필요한 하위 설정을 명시한다.
 - 시뮬레이션과 실기체는 가능한 한 같은 상위 ROS 2 인터페이스를 사용한다.

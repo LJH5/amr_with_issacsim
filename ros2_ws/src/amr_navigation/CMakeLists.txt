@@ -4,6 +4,8 @@ project(amr_navigation)
 find_package(ament_cmake REQUIRED)
 install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
 install(FILES README.md DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/imu_covariance.py scripts/wait_for_navigation_tf.py
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(Python3 REQUIRED COMPONENTS Interpreter)

@@ -6,10 +6,12 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import (DeclareLaunchArgument, GroupAction, IncludeLaunchDescription,
+                            OpaqueFunction, RegisterEventHandler)
 from launch.conditions import IfCondition
+from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import IfElseSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from nav2_common.launch import RewrittenYaml
@@ -47,9 +49,16 @@ def start_navigation(context):
             key = f'{scope}.{scope}.ros__parameters.obstacle_layer.{sensor}.topic'
             rewrites[key] = LaunchConfiguration(argument)
     for sensor, argument in (('front', 'scan_topic'), ('rear', 'rear_scan_topic')):
-        rewrites[f'collision_monitor.ros__parameters.{sensor}.topic'] = LaunchConfiguration(argument)
+        key = f'collision_monitor.ros__parameters.{sensor}.topic'
+        rewrites[key] = LaunchConfiguration(argument)
     configured = RewrittenYaml(
         source_file=str(params_file), param_rewrites=rewrites, convert_types=True).perform(context)
+    nav_params = yaml.safe_load(Path(configured).read_text())
+    frames = []
+    for scope in ('local_costmap', 'global_costmap'):
+        costmap = nav_params.get(scope, {}).get(scope, {}).get('ros__parameters', {})
+        frames += [costmap.get('global_frame', 'map'),
+                   costmap.get('robot_base_frame', 'base_link')]
     simulation = ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)
     # Reuse Nav2's localization lifecycle management and AMCL /initialpose support.
     actions = [GroupAction(actions=[IncludeLaunchDescription(
@@ -73,11 +82,21 @@ def start_navigation(context):
         actions.append(Node(
             package=node_package, executable=executable, name=executable, output='screen',
             parameters=[configured, {'use_sim_time': simulation}], remappings=remappings))
-    actions.append(Node(
+    manager = Node(
         package='nav2_lifecycle_manager', executable='lifecycle_manager',
         name='lifecycle_manager_navigation', output='screen',
         parameters=[{'autostart': True, 'use_sim_time': simulation,
-                     'node_names': [executable for _, executable, _ in servers]}]))
+                     'node_names': [executable for _, executable, _ in servers]}])
+    ready = Node(package='amr_navigation', executable='wait_for_navigation_tf.py',
+                 output='screen', parameters=[{'costmap_frames': frames}])
+
+    def start_manager(event, launch_context):
+        if event.returncode == 0 and not launch_context.is_shutdown:
+            return [manager]
+        return []
+
+    actions += [RegisterEventHandler(OnProcessExit(target_action=ready, on_exit=start_manager)),
+                ready]
     actions.append(Node(
         package='rviz2', executable='rviz2', name='navigation_rviz', output='screen',
         condition=IfCondition(LaunchConfiguration('rviz')),
@@ -89,10 +108,13 @@ def start_navigation(context):
 
 
 def generate_launch_description():
-    """Start the robot stack optionally, and keep AMCL as the sole map-to-odom owner."""
+    """Compose the robot and local odometry with map-based localization and navigation."""
     package = Path(get_package_share_directory('amr_navigation'))
     mapping = Path(get_package_share_directory('amr_mapping'))
     robot = Path(get_package_share_directory('my_amr'))
+    use_ekf = LaunchConfiguration('use_ekf')
+    ekf_params = LaunchConfiguration('ekf_params_file')
+    simulation = ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)
     return LaunchDescription([
         DeclareLaunchArgument('map', default_value=str(mapping / 'map/map.yaml')),
         DeclareLaunchArgument('params_file', default_value=str(package / 'config/nav2.yaml')),
@@ -100,6 +122,9 @@ def generate_launch_description():
         DeclareLaunchArgument('rear_scan_topic', default_value='/scan/rear'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('start_bringup', default_value='true'),
+        DeclareLaunchArgument('use_ekf', default_value=LaunchConfiguration('start_bringup'),
+                              description='Fuse wheel odometry and IMU for navigation'),
+        DeclareLaunchArgument('ekf_params_file', default_value=str(package / 'config/ekf.yaml')),
         DeclareLaunchArgument('sim', default_value='false'),
         DeclareLaunchArgument('headless', default_value='false'),
         DeclareLaunchArgument('rviz', default_value='true'),
@@ -108,9 +133,17 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('start_bringup')),
             launch_arguments={
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
-                'publish_tf': 'true', 'validation': 'false',
+                'publish_tf': IfElseSubstitution(use_ekf, 'false', 'true'),
+                'odom_topic': IfElseSubstitution(use_ekf, '/wheel/odom', '/odom'),
+                'validation': 'false',
                 'params_file': str(robot / 'config/odometry.yaml'),
                 'sim': LaunchConfiguration('sim'), 'headless': LaunchConfiguration('headless'),
             }.items())]),
+        Node(package='amr_navigation', executable='imu_covariance.py', output='screen',
+             condition=IfCondition(use_ekf), parameters=[ekf_params]),
+        Node(package='robot_localization', executable='ekf_node', name='ekf_filter_node',
+             output='screen', condition=IfCondition(use_ekf),
+             parameters=[ekf_params, {'use_sim_time': simulation}],
+             remappings=[('odometry/filtered', '/odom')]),
         OpaqueFunction(function=start_navigation),
     ])

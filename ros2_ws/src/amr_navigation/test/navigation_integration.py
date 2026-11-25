@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 LJH5
 # SPDX-License-Identifier: Apache-2.0
-"""Native Nav2 + AMCL + C++ drive/odom with synthetic hardware in a private domain."""
+"""Native Nav2, EKF, AMCL and C++ drive with synthetic hardware in a private domain."""
 import json
 import math
 import os
@@ -18,7 +18,7 @@ import numpy as np
 from PIL import Image
 import rclpy
 from rclpy.action import ActionClient
-from rclpy.qos import DurabilityPolicy, QoSProfile
+from rclpy.qos import DurabilityPolicy, QoSProfile, qos_profile_sensor_data
 from rclpy.time import Time
 from ament_index_python.packages import get_package_share_directory
 from action_msgs.msg import GoalStatus
@@ -26,10 +26,10 @@ from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, Twist
 from lifecycle_msgs.srv import GetState
 from nav2_msgs.action import NavigateToPose
 from nav2_msgs.msg import CollisionMonitorState
-from nav_msgs.msg import OccupancyGrid, Path as NavPath
+from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
 from rcl_interfaces.srv import GetParameters
 from rosgraph_msgs.msg import Clock
-from sensor_msgs.msg import JointState, LaserScan
+from sensor_msgs.msg import Imu, JointState, LaserScan
 from tf2_ros import Buffer, StaticTransformBroadcaster, TransformListener
 import yaml
 
@@ -53,20 +53,33 @@ class Hardware:
         self.targets = np.zeros(4)
         self.last_target = time.monotonic()
         self.sim_ns = 10000000000
+        self.lateral_scale = 1.0
+        self.yaw_slip = 0.0
+        self.gyro_bias = 0.0
         self.commands = []
         self.maps = []
         self.paths = []
         self.poses = []
+        self.imu_with_covariance = []
+        self.wheel_odom = []
+        self.fused_odom = []
         self.monitor = []
         self.close_obstacle = False
         self.raw_command = None
         self.clock = node.create_publisher(Clock, '/clock', 10)
         self.joints = node.create_publisher(JointState, '/joint_states', 10)
+        self.imu = node.create_publisher(Imu, self.spec['sensors']['imu']['topic'],
+                                         qos_profile_sensor_data)
         self.initial = node.create_publisher(PoseWithCovarianceStamped, '/initialpose', 10)
         self.raw = node.create_publisher(Twist, '/cmd_vel_smoothed', 10)
         node.create_subscription(JointState, '/wheel_commands', self.receive_wheels, 10)
         node.create_subscription(Twist, '/cmd_vel', self.commands.append, 10)
         node.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.poses.append, 10)
+        node.create_subscription(Odometry, '/wheel/odom', self.wheel_odom.append,
+                                 qos_profile_sensor_data)
+        node.create_subscription(Odometry, '/odom', self.fused_odom.append, qos_profile_sensor_data)
+        node.create_subscription(Imu, '/imu/with_covariance', self.imu_with_covariance.append,
+                                 qos_profile_sensor_data)
         node.create_subscription(NavPath, '/plan', self.paths.append, 10)
         node.create_subscription(CollisionMonitorState, '/collision_monitor_state', self.monitor.append, 10)
         node.create_subscription(OccupancyGrid, '/map', self.maps.append,
@@ -140,6 +153,8 @@ class Hardware:
             rclpy.spin_once(self.node, timeout_sec=0.001)
         wheels = self.targets if start - self.last_target < 0.3 else np.zeros(4)
         velocity = self.forward @ wheels
+        velocity[1] *= self.lateral_scale
+        velocity[2] += self.yaw_slip
         dt = 0.05
         mid_yaw = self.pose[2] + velocity[2] * dt / 2
         self.pose[0] += (math.cos(mid_yaw) * velocity[0] - math.sin(mid_yaw) * velocity[1]) * dt
@@ -156,6 +171,14 @@ class Hardware:
         joint.position = ((self.angles + 2 * math.pi) % (4 * math.pi) - 2 * math.pi).tolist()
         joint.velocity = wheels.tolist()
         self.joints.publish(joint)
+        imu = Imu()
+        imu.header.stamp = clock.clock
+        imu.header.frame_id = 'imu_link'
+        imu.orientation.z = math.sin(self.pose[2] / 2)
+        imu.orientation.w = math.cos(self.pose[2] / 2)
+        imu.linear_acceleration_covariance[0] = -1.0
+        imu.angular_velocity.z = velocity[2] + self.gyro_bias
+        self.imu.publish(imu)
         for name, sensor, publisher in self.scanners:
             publisher.publish(self.scan(name, sensor))
         if self.raw_command is not None:
@@ -171,10 +194,16 @@ def main():
     print('Navigation test artifacts:', root, 'domain', os.environ['ROS_DOMAIN_ID'], flush=True)
     rclpy.init()
     node = rclpy.create_node('navigation_hardware_fixture')
+    package = Path(get_package_share_directory('amr_navigation'))
+    params = yaml.safe_load((package / 'config/nav2.yaml').read_text())
+    params['global_costmap']['global_costmap']['ros__parameters']['initial_transform_timeout'] = 1.0
+    params_file = root / 'nav2.yaml'
+    params_file.write_text(yaml.safe_dump(params))
     log_path = root / 'navigation.log'
     with log_path.open('w') as log:
         process = subprocess.Popen(
-            ['ros2', 'launch', 'amr_navigation', 'navigation.launch.py', 'rviz:=false'],
+            ['ros2', 'launch', 'amr_navigation', 'navigation.launch.py', 'rviz:=false',
+             f'params_file:={params_file}'],
             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
             hardware = Hardware(node)
@@ -200,8 +229,18 @@ def main():
 
             active('amcl')
             until(lambda: bool(hardware.maps))
-            for _ in range(10):
-                hardware.step()
+            until(lambda: bool(hardware.wheel_odom and hardware.fused_odom))
+            until(lambda: bool(hardware.imu_with_covariance))
+            assert hardware.imu_with_covariance[-1].angular_velocity_covariance[8] == 0.0025
+            assert hardware.imu_with_covariance[-1].orientation_covariance[8] == 0.0025
+            assert [p.node_name for p in node.get_publishers_info_by_topic('/odom')] == [
+                'ekf_filter_node']
+            assert [p.node_name for p in node.get_publishers_info_by_topic('/wheel/odom')] == [
+                'wheel_odometry']
+            assert hardware.fused_odom[-1].header.frame_id == 'odom'
+            assert hardware.fused_odom[-1].child_frame_id == 'base_footprint'
+            start = hardware.sim_ns
+            until(lambda: hardware.sim_ns - start > 3500000000)
             assert not hardware.buffer.can_transform('map', 'odom', Time()), 'AMCL skipped initial pose'
             assert np.max(np.abs(hardware.targets)) < 1e-6, 'Motion before operator initialization'
             until(lambda: node.count_subscribers('/initialpose') >= 1)
@@ -218,6 +257,7 @@ def main():
                   hardware.buffer.can_transform('map', 'base_footprint', Time()))
             for name in ('controller_server', 'planner_server', 'bt_navigator', 'collision_monitor'):
                 active(name)
+            print('PASS Nav2 activated after delayed initial pose', flush=True)
             assert node.count_publishers('/cmd_vel') == 1
             params = node.create_client(GetParameters, '/amcl/get_parameters')
             until(params.service_is_ready)
@@ -231,38 +271,93 @@ def main():
             # Nav2's params_file must not replace the wheel odometry configuration.
             params = node.create_client(GetParameters, '/wheel_odometry/get_parameters')
             until(params.service_is_ready)
-            req.names = ['position_wrap_period_rad']
+            req.names = ['position_wrap_period_rad', 'publish_tf']
             future = params.call_async(req)
             until(future.done)
             assert math.isclose(future.result().values[0].double_value, 4 * math.pi)
+            assert not future.result().values[1].bool_value, 'Wheel odometry also publishes TF'
             node.destroy_client(params)
 
             navigator = ActionClient(node, NavigateToPose, '/navigate_to_pose')
             until(navigator.server_is_ready)
 
-            def send_goal(x, y):
+            def send_goal(x, y, yaw=0.0):
                 goal = NavigateToPose.Goal()
                 goal.pose.header.frame_id = 'map'
                 goal.pose.header.stamp = hardware.stamp()
                 goal.pose.pose.position.x = x
                 goal.pose.pose.position.y = y
-                goal.pose.pose.orientation.w = 1.0
+                goal.pose.pose.orientation.z = math.sin(yaw / 2)
+                goal.pose.pose.orientation.w = math.cos(yaw / 2)
                 future = navigator.send_goal_async(goal)
                 until(future.done)
                 handle = future.result()
                 assert handle.accepted, 'Goal was rejected'
                 return handle
 
+            hardware.lateral_scale = 0.8
             goal = send_goal(0.0, 0.7)
             result = goal.get_result_async()
+            until(lambda: any(cmd.linear.y > 0.04 for cmd in hardware.commands))
+            hardware.yaw_slip = 0.20
+            for _ in range(12):
+                hardware.step()
+            wheel_yaw_rate = hardware.wheel_odom[-1].twist.twist.angular.z
+            fused_yaw_rate = hardware.fused_odom[-1].twist.twist.angular.z
+            assert abs(fused_yaw_rate - wheel_yaw_rate - hardware.yaw_slip) < 0.08, (
+                wheel_yaw_rate, fused_yaw_rate)
+            hardware.yaw_slip = 0.0
             until(result.done, timeout=45)
             assert result.result().status == GoalStatus.STATUS_SUCCEEDED, result.result()
             assert hardware.paths and hardware.paths[-1].poses
-            assert np.linalg.norm(hardware.pose[:2] - [0, 0.7]) < 0.22, hardware.pose
             assert any(abs(cmd.linear.y) > 0.02 for cmd in hardware.commands), 'No lateral command'
+            odom_position = hardware.fused_odom[-1].pose.pose.position
+            map_position = hardware.buffer.lookup_transform(
+                'map', 'base_footprint', Time()).transform.translation
+            odom_error = np.linalg.norm([odom_position.x - hardware.pose[0],
+                                         odom_position.y - hardware.pose[1]])
+            map_error = np.linalg.norm([map_position.x - hardware.pose[0],
+                                        map_position.y - hardware.pose[1]])
+            hardware.lateral_scale = 1.0
             goal_pose = hardware.pose.tolist()
-            print('PASS native navigation: map load, AMCL /initialpose, Omni model, '
-                  'path, lateral goal and C++ wheel/odom pipeline', hardware.pose.tolist(), flush=True)
+            goal_error = np.linalg.norm(hardware.pose[:2] - [0, 0.7])
+            print(f'Slip trial: goal={goal_error:.3f} m, '
+                  f'odom={odom_error:.3f} m, map={map_error:.3f} m', flush=True)
+            assert goal_error < 0.22, goal_pose
+            assert map_error + 0.03 < odom_error, (map_error, odom_error)
+            print(f'PASS navigation with slip: IMU shifted yaw rate '
+                  f'{wheel_yaw_rate:.3f} → {fused_yaw_rate:.3f} rad/s, '
+                  f'position error odom={odom_error:.3f} m map={map_error:.3f} m, '
+                  f'lateral goal pose={goal_pose}', flush=True)
+
+            start = hardware.pose.copy()
+            transform = hardware.buffer.lookup_transform('map', 'base_footprint', Time()).transform
+            map_yaw = 2 * math.atan2(transform.rotation.z, transform.rotation.w)
+            goal = send_goal(transform.translation.x, transform.translation.y, map_yaw + math.pi / 2)
+            result = goal.get_result_async()
+            until(result.done, timeout=30)
+            assert result.result().status == GoalStatus.STATUS_SUCCEEDED, result.result()
+            yaw_error = abs(math.remainder(hardware.pose[2] - start[2] - math.pi / 2, 2 * math.pi))
+            center_drift = np.linalg.norm(hardware.pose[:2] - start[:2])
+            assert yaw_error < 0.14 and center_drift < 0.08, (yaw_error, center_drift)
+            print(f'PASS 90° rotation: yaw error={math.degrees(yaw_error):.1f}°, '
+                  f'center drift={center_drift:.3f} m', flush=True)
+
+            until(lambda: np.max(np.abs(hardware.targets)) < 0.02)
+            for _ in range(10):
+                hardware.step()
+            initial_orientation = hardware.fused_odom[-1].pose.pose.orientation
+            hardware.gyro_bias = 0.008
+            for _ in range(70):
+                hardware.step()
+            hardware.gyro_bias = 0.0
+            final_orientation = hardware.fused_odom[-1].pose.pose.orientation
+            odom_yaw_delta = 2 * (math.atan2(final_orientation.z, final_orientation.w) -
+                                  math.atan2(initial_orientation.z, initial_orientation.w))
+            stationary_drift = abs(math.remainder(odom_yaw_delta, 2 * math.pi))
+            assert stationary_drift < 0.009, math.degrees(stationary_drift)
+            print(f'PASS stationary gyro bias: yaw drift={math.degrees(stationary_drift):.2f}°',
+                  flush=True)
 
             goal = send_goal(0.9, 0.7)
             for _ in range(8):
@@ -297,6 +392,11 @@ def main():
             (root / 'result.json').write_text(json.dumps({
                 'goal_pose': goal_pose, 'final_pose': hardware.pose.tolist(), 'lateral_commands': sum(
                     abs(c.linear.y) > 0.02 for c in hardware.commands),
+                'slip_goal_error_m': goal_error,
+                'slip_odom_error_m': odom_error, 'slip_map_error_m': map_error,
+                'slip_wheel_yaw_rate_rad_s': wheel_yaw_rate,
+                'slip_fused_yaw_rate_rad_s': fused_yaw_rate,
+                'stationary_yaw_drift_deg': math.degrees(stationary_drift),
                 'goal_succeeded': True, 'cancel_stopped': True, 'collision_stopped': True}, indent=2))
         except Exception:
             print(log_path.read_text()[-14000:], flush=True)

@@ -62,6 +62,7 @@ def generate_launch_description():
                               description='Path to isaac_sim/run.sh for sim:=true'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('publish_tf', default_value='true'),
+        DeclareLaunchArgument('odom_topic', default_value='/odom'),
         OpaqueFunction(function=start_simulator,
                        condition=IfCondition(LaunchConfiguration('sim'))),
         IncludeLaunchDescription(
@@ -72,6 +73,7 @@ def generate_launch_description():
             launch_arguments={
                 'use_sim_time': LaunchConfiguration('use_sim_time'),
                 'publish_tf': LaunchConfiguration('publish_tf'),
+                'odom_topic': LaunchConfiguration('odom_topic'),
             }.items()),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(str(launch / 'validation.launch.py')),
